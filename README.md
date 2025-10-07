@@ -1,8 +1,12 @@
 ### CSEG516-TERM-PROJECT
 ---
-Subject : 
+This repository contains the Reinforcement Learning term project for Sogang University.
 
-#### GPU Runtime Notes
-- Make sure the GPU host has a compatible NVIDIA driver and `nvidia-container-toolkit` installed.
-- Start containers with `docker run --gpus all ...` so the device is exposed; without it the image runs in CPU mode only.
-- Check `nvidia-smi` to confirm the driver supports CUDA 12.5 before relying on GPU acceleration.
+**Project Team**
+- Daewon Kim
+- Seobin Choi
+
+**Project Topic**
+- Reproduce reinforcement learning-based model inversion attack experiments.
+- Compare the performance of various reinforcement learning algorithms provided by ClearRL.
+- Evaluate the performance impact of our additional reward function design.
