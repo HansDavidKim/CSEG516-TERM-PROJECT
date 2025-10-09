@@ -6,3 +6,5 @@ scikit-learn==1.6.1
 transformers==4.56.2
 accelerate==1.10.1
 datasets==4.0.0
+matplotlib==3.10.0
+tqdm

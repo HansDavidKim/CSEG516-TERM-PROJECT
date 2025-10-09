@@ -5,3 +5,6 @@ __pycache__/
 *.dylib
 *.egg-info/
 *.tar
+*.ipynb
+*.png
+*.jpg
