@@ -1,0 +1,7 @@
+### Ignoring pycache and its bypass files
+__pycache__/
+*.py[cod]
+*.so
+*.dylib
+*.egg-info/
+*.tar
