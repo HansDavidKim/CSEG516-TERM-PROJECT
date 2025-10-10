@@ -8,7 +8,11 @@ from PIL import ImageOps, Image
 from datasets import load_dataset, concatenate_datasets, DatasetDict
 from tqdm.auto import tqdm
 
-from utils import seed_everything
+from utils import (
+    seed_everything,
+    load_kaggle_dataset,
+    login_kaggle,
+)
 
 
 def _log(message: str, verbose: bool):
@@ -69,9 +73,13 @@ def unify_format(dataset):
         for split_name, split_dataset in dataset.items():
             if 'celeb_id' in split_dataset.column_names:
                 dataset[split_name] = split_dataset.rename_column('celeb_id', 'identity')
+            elif 'label' in split_dataset.column_names and 'identity' not in split_dataset.column_names:
+                dataset[split_name] = split_dataset.rename_column('label', 'identity')
 
     elif hasattr(dataset, 'column_names') and 'celeb_id' in dataset.column_names:
         dataset = dataset.rename_column('celeb_id', 'identity')
+    elif hasattr(dataset, 'column_names') and 'label' in dataset.column_names and 'identity' not in dataset.column_names:
+        dataset = dataset.rename_column('label', 'identity')
 
     return dataset
 
@@ -154,8 +162,11 @@ def extract_public(dataset, num_identities: int, num_proc: int | None = None):
     return split_identity(dataset)
 
 def split_dataset(dataset, seed: int = 42, stratify_column: str | None = 'identity'):
-    if isinstance(dataset, DatasetDict) and {'train', 'valid', 'test'}.issubset(set(dataset.keys())):
-        return dataset
+    if isinstance(dataset, DatasetDict):
+        dataset = concatenate_datasets(list(dataset.values()))
+
+    if len(dataset) < 3:
+        raise ValueError("Dataset is too small to split into train/valid/test.")
 
     stratify = stratify_column if stratify_column and stratify_column in dataset.column_names else None
 
@@ -171,8 +182,8 @@ def split_dataset(dataset, seed: int = 42, stratify_column: str | None = 'identi
                 pass
         return ds.train_test_split(test_size=test_size, seed=seed)
 
-    first_split = _train_test_split(dataset, 0.2)
-    valid_test_split = _train_test_split(first_split['test'], 0.5)
+    first_split = _train_test_split(dataset, test_size=0.2)
+    valid_test_split = _train_test_split(first_split['test'], test_size=0.5)
 
     return DatasetDict({
         'train': first_split['train'],
@@ -188,7 +199,6 @@ def preprocess_image(image: Image.Image)->Image.Image:
 def save_dataset(
         dataset,
         file_path: str,
-        max_images_per_identity: int | None = 20,
         max_images_per_split: int | None = None,
         verbose: bool = False,
     ):
@@ -221,9 +231,6 @@ def save_dataset(
                     break
 
                 identity = example['identity']
-                if max_images_per_identity is not None and identity_counts[identity] >= max_images_per_identity:
-                    continue
-
                 image = ensure_pil(example['image'])
                 if image.mode != 'RGB':
                     image = image.convert('RGB')
@@ -251,10 +258,6 @@ def save_dataset(
             break
 
         identity = example.get('identity')
-        if identity is not None and max_images_per_identity is not None:
-            if identity_counts[identity] >= max_images_per_identity:
-                continue
-
         image = ensure_pil(example['image'])
         if image.mode != 'RGB':
             image = image.convert('RGB')
@@ -271,9 +274,9 @@ def preprocess_dataset(
         num_identities: int, 
         seed: int=42,
         num_proc: int | None = None,
-        max_images_per_identity: int | None = 20,
         max_images_per_split: int | None = None,
         verbose: bool = True,
+        is_kaggle: bool = False
     ):
     if num_proc is None:
         cpu_count = os.cpu_count() or 1
@@ -284,11 +287,14 @@ def preprocess_dataset(
 
     try:
         _log("[preprocess_dataset] Loading dataset", verbose)
-        data = load_dataset(dataset_name)
+        if is_kaggle:
+            data = load_kaggle_dataset(dataset_name)
+        else:
+            data = load_dataset(dataset_name)
         _log("[preprocess_dataset] Dataset loaded", verbose)
         data = unify_format(data)
-    except:
-        print(f'{dataset_name} is not available on huggingface.')
+    except Exception as exc:
+        print(f"Failed to load dataset '{dataset_name}': {exc}")
         exit(1)
 
     _log("[preprocess_dataset] Combining splits", verbose)
@@ -312,22 +318,20 @@ def preprocess_dataset(
     _log("[preprocess_dataset] Image preprocessing complete", verbose)
 
     _log("[preprocess_dataset] Extracting public/private splits", verbose)
-    public, private = extract_public(data, num_identities, num_proc=num_proc)
-    _log("[preprocess_dataset] Splitting public dataset into train/valid/test", verbose)
-    public = split_dataset(public, seed=seed)
+    private, public = extract_public(data, num_identities, num_proc=num_proc)
+    _log("[preprocess_dataset] Splitting private dataset into train/valid/test", verbose)
+    private = split_dataset(private, seed=seed)
 
     dataset_id = dataset_name.split('/')[-1]
     save_dataset(
         public,
         f'dataset/public/{dataset_id}',
-        max_images_per_identity=max_images_per_identity,
         max_images_per_split=max_images_per_split,
         verbose=verbose,
     )
     save_dataset(
         private,
         f'dataset/private/{dataset_id}',
-        max_images_per_identity=max_images_per_identity,
         max_images_per_split=max_images_per_split,
         verbose=verbose,
     )
@@ -335,5 +339,72 @@ def preprocess_dataset(
 
     return public, private
 
+
+def load_kaggle_public_dataset(
+    dataset_name: str,
+    *,
+    sample_size: int = 30_000,
+    seed: int = 42,
+    output_dir: str | None = None,
+    verbose: bool = True,
+    num_proc: int | None = None,
+):
+    """Download, optionally sample, and save a Kaggle dataset as a public split."""
+
+    if num_proc is None:
+        cpu_count = os.cpu_count() or 1
+        num_proc = max(1, cpu_count // 2)
+
+    login_kaggle()
+    _log(f"[load_kaggle_public_dataset] Loading dataset '{dataset_name}'", verbose)
+    data = load_kaggle_dataset(dataset_name)
+    data = unify_format(data)
+
+    if isinstance(data, DatasetDict):
+        _log("[load_kaggle_public_dataset] Combining splits", verbose)
+        data = combine_dataset(data)
+
+    total = len(data)
+    if sample_size is not None and total > sample_size:
+        _log(f"[load_kaggle_public_dataset] Sampling {sample_size} of {total} images", verbose)
+        data = data.shuffle(seed=seed)
+        data = data.select(range(sample_size))
+
+    if 'identity' not in data.column_names:
+        data = data.add_column('identity', [0] * len(data))
+
+    _log("[load_kaggle_public_dataset] Preprocessing images", verbose)
+    data = data.map(
+        _preprocess_images_batch,
+        batched=True,
+        num_proc=num_proc,
+    )
+    _log("[load_kaggle_public_dataset] Image preprocessing complete", verbose)
+
+    if output_dir is None:
+        dataset_id = dataset_name.split('/')[-1]
+        output_dir = f'dataset/public/{dataset_id}'
+
+    _log(f"[load_kaggle_public_dataset] Saving dataset to '{output_dir}'", verbose)
+    save_dataset(
+        data,
+        output_dir,
+        verbose=verbose,
+    )
+
+    return data
+
+
 if __name__ == '__main__':
-    preprocess_dataset('flwrlabs/celeba', 1000, verbose=True)
+    # Example preprocessing calls
+    # preprocess_dataset('flwrlabs/celeba', 1000, verbose=True)
+    # preprocess_dataset("annasvoboda/pubfig83", 50, verbose=True, is_kaggle=True)
+    # preprocess_dataset('rajnishe/facescrub-full', 200, verbose=True, is_kaggle=True)
+
+    load_kaggle_public_dataset(
+        'arnaud58/flickrfaceshq-dataset-ffhq',
+        sample_size=30_000,
+        seed=42,
+        output_dir='dataset/public/flickrfaceshq-dataset-ffhq',
+        verbose=True,
+    )
