@@ -3,3 +3,21 @@ optimizer = 'SGD'
 batch_size = 64
 learning_rate = 0.01
 
+[dataset]
+seed = 42
+
+hugging_face = [
+    'flwrlabs/celeba'
+    ]
+
+kaggle_hub = [
+    'rajnishe/facescrub-full',
+    'annasvoboda/pubfig83',
+    ]
+
+### We can add other dataset later, but for now, we don't.
+dist_shift_hugging = []
+
+dist_shift_kaggle = [
+    'arnaud58/flickrfaceshq-dataset-ffhq'
+    ]
