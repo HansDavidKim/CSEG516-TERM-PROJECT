@@ -1,6 +1,5 @@
 ### Ignoring pycache and its bypass files
 __pycache__/
-*.py[cod]
 *.so
 *.dylib
 *.egg-info/
@@ -8,3 +7,5 @@ __pycache__/
 *.ipynb
 *.png
 *.jpg
+.env
+dataset/
