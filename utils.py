@@ -9,7 +9,7 @@ import numpy as np
 import torch
 import kagglehub
 from datasets import Dataset, DatasetDict, load_dataset
-import warnings
+import warnings, logging
 
 from config import env_config
 
@@ -180,6 +180,12 @@ def load_kaggle_dataset(dataset: str):
     if len(loaded) == 1:
         return next(iter(loaded.values()))
     return DatasetDict(loaded)
+
+def configure_logging() -> None:
+    """Suppress KaggleHub's outdated-version chatter while keeping other logs intact."""
+    kagglehub_logger = logging.getLogger("kagglehub.clients")
+    kagglehub_logger.setLevel(logging.ERROR)
+    kagglehub_logger.propagate = False
 
 if __name__ == '__main__':
     login_kaggle()

@@ -9,3 +9,4 @@ __pycache__/
 *.jpg
 .env
 dataset/
+*.pt

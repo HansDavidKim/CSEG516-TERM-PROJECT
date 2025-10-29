@@ -8,6 +8,8 @@ from PIL import ImageOps, Image
 from datasets import load_dataset, concatenate_datasets, DatasetDict
 from tqdm.auto import tqdm
 
+from config import dataset_config
+
 from utils import (
     seed_everything,
     load_kaggle_dataset,
@@ -394,6 +396,26 @@ def load_kaggle_public_dataset(
 
     return data
 
+def dataset_orchestration():
+    seed = dataset_config['seed']
+    for i, dataset in enumerate(dataset_config['hugging_face']):
+        num_identity = dataset_config['hugging_identity'][i]
+        preprocess_dataset(dataset, num_identity, verbose=True, seed=seed)
+
+    for i, dataset in enumerate(dataset_config['kaggle_hub']):
+        num_identity = dataset_config['kaggle_identity'][i]
+        preprocess_dataset(dataset, num_identity, verbose=True, is_kaggle=True, seed=seed)
+
+    for i, dataset in enumerate(dataset_config['dist_shift_kaggle']):
+        num_identity = dataset_config['dist_shift_kaggle_identity'][i]
+
+        load_kaggle_public_dataset(
+            dataset,
+            sample_size=30_000,
+            seed=seed,
+            output_dir=f'dataset/public/{dataset.split('/')[1]}',
+            verbose=True
+        )
 
 if __name__ == '__main__':
     # Example preprocessing calls

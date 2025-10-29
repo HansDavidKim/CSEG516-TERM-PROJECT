@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 
-import evolve
+from . import evolve
 
 class Flatten(nn.Module):
     def forward(self, input):
@@ -12,7 +12,7 @@ class Flatten(nn.Module):
 class VGG16(nn.Module):
     def __init__(self, n_classes):
         super().__init__()
-        model = torchvision.models.vgg16_bn(pretrained=False)
+        model = torchvision.models.vgg16_bn(weights=None)
 
         ### Feature Extractor for VGG16; input assumed to be 64x64 so final map is 2x2
         self.feature = model.features
