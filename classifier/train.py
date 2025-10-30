@@ -1,6 +1,7 @@
 import math
 import os
 import random
+import re
 from pathlib import Path
 from typing import Dict, Iterable, Tuple
 
@@ -363,13 +364,24 @@ def train(
             candidate_paths = [Path(weight_path)]
         else:
             pretrained_dir = Path("pretrained")
-            sanitized = model_name.replace(".", "")
-            candidate_paths = [
-                pretrained_dir / f"{model_name}.tar",
-                pretrained_dir / f"{model_name.lower()}.tar",
-                pretrained_dir / f"{sanitized}.tar",
-                pretrained_dir / f"{sanitized.lower()}.tar",
-            ]
+            sanitized = model_name.replace(".", "").replace(" ", "")
+            hyphenated = sanitized
+            # insert hyphen before trailing digits if not already present
+            match = re.search(r"(\d+)$", sanitized)
+            if match:
+                prefix = sanitized[: match.start()]
+                digits = match.group(1)
+                if not prefix.endswith("-"):
+                    hyphenated = f"{prefix}-{digits}"
+            candidate_names = {
+                model_name,
+                model_name.lower(),
+                sanitized,
+                sanitized.lower(),
+                hyphenated,
+                hyphenated.lower(),
+            }
+            candidate_paths = [pretrained_dir / f"{name}.tar" for name in candidate_names]
         resolved_path: Path | None = None
         for candidate in candidate_paths:
             if candidate.exists():
