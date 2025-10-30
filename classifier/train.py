@@ -344,7 +344,10 @@ def train(
         train_loss, _ = run_epoch(model, arc_head, train_dl, criterion, device, optimizer=optimizer, desc=f"Train {epoch}/{epochs}")
         eval_loss, eval_metrics = run_epoch(model, arc_head, eval_dl, criterion, device, optimizer=None, desc=eval_name)
 
-        print(f"Epoch {epoch} | Train Loss: {train_loss:.4f} | {eval_name} Loss: {eval_loss:.4f} | Top1: {eval_metrics['top1']:.2f}%")
+        print(
+            f"Epoch {epoch} | Train Loss: {train_loss:.4f} | {eval_name} Loss: {eval_loss:.4f} | "
+            f"Top-1: {eval_metrics['top1']:.2f}% | Top-3: {eval_metrics['top3']:.2f}% | Top-5: {eval_metrics['top5']:.2f}%"
+        )
 
         if eval_loss < best_loss:
             best_loss = eval_loss
