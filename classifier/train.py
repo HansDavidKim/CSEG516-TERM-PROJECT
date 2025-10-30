@@ -252,12 +252,12 @@ def get_transforms(level: str = "normal") -> Tuple[transforms.Compose, transform
             transforms.RandomHorizontalFlip(),
             transforms.RandomApply([
                 transforms.ColorJitter(
-                    brightness=0.04,
-                    contrast=0.04,
-                    saturation=0.04,
+                    brightness=0.05,
+                    contrast=0.05,
+                    saturation=0.05,
                     hue=0.01,
                 )
-            ], p=0.3),
+            ], p=0.4),
             transforms.RandomApply([
                 transforms.RandomAffine(
                     degrees=5,
@@ -265,7 +265,10 @@ def get_transforms(level: str = "normal") -> Tuple[transforms.Compose, transform
                     scale=(0.95, 1.05),
                     interpolation=InterpolationMode.BILINEAR,
                 )
-            ], p=0.2),
+            ], p=0.3),
+            transforms.RandomApply([
+                transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 0.5))
+            ], p=0.15),
             transforms.ToTensor(),
             transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
         ])
