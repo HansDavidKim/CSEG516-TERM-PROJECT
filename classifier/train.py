@@ -276,35 +276,35 @@ def get_transforms(level: str = "normal") -> Tuple[transforms.Compose, transform
         train_tf = transforms.Compose([
             transforms.RandomResizedCrop(
                 64,
-                scale=(0.85, 1.0),
+                scale=(0.9, 1.0),
                 interpolation=InterpolationMode.BICUBIC,
             ),
             transforms.RandomHorizontalFlip(),
             transforms.RandomApply([
                 transforms.ColorJitter(
-                    brightness=0.12,
-                    contrast=0.12,
-                    saturation=0.12,
-                    hue=0.025,
+                    brightness=0.08,
+                    contrast=0.08,
+                    saturation=0.08,
+                    hue=0.02,
                 )
-            ], p=0.6),
+            ], p=0.5),
             transforms.RandomApply([
                 transforms.RandomAffine(
-                    degrees=8,
-                    translate=(0.04, 0.04),
-                    scale=(0.93, 1.07),
+                    degrees=6,
+                    translate=(0.025, 0.025),
+                    scale=(0.95, 1.05),
                     interpolation=InterpolationMode.BILINEAR,
                 )
-            ], p=0.4),
+            ], p=0.35),
             transforms.RandomApply([
-                transforms.RandomPerspective(distortion_scale=0.2, p=1.0)
-            ], p=0.25),
+                transforms.RandomPerspective(distortion_scale=0.12, p=1.0)
+            ], p=0.2),
             transforms.RandomApply([
-                transforms.GaussianBlur(kernel_size=3, sigma=(0.15, 0.6))
+                transforms.GaussianBlur(kernel_size=3, sigma=(0.12, 0.45))
             ], p=0.2),
             transforms.ToTensor(),
             transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
-            transforms.RandomErasing(p=0.15, scale=(0.02, 0.2), ratio=(0.3, 2.5)),
+            transforms.RandomErasing(p=0.08, scale=(0.02, 0.15), ratio=(0.4, 2.0)),
         ])
     else:
         raise ValueError("augmentation level must be one of: weak, normal, strong")
