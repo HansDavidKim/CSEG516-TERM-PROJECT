@@ -8,6 +8,7 @@ epoch = 50
 early_stopping = true
 patience = 7
 augmentation_level = 'normal'
+saving_option = 'top5'
 
 [dataset]
 seed = 42

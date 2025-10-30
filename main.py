@@ -35,6 +35,12 @@ def train_classifier(
         help="Select augmentation intensity: weak, normal, or strong.",
         case_sensitive=False,
     ),
+    saving_option: str | None = typer.Option(
+        None,
+        "--saving-option",
+        help="Checkpoint selection metric: top1, top3, top5, or loss.",
+        case_sensitive=False,
+    ),
     ):
 
     dataset_alias = {
@@ -64,19 +70,26 @@ def train_classifier(
         epochs=epoch,
         patience=patience,
         augmentation_level=aug_level,
+        saving_option=saving_option,
     )
 
     eval_label = "validation" if results["eval_split"] == "valid" else "test"
+    save_opt = results.get("saving_option", "top5")
+    metric_value = results.get("best_metric_value", results["best_eval_loss"])
+    if save_opt == "loss":
+        crit_summary = f"loss {metric_value:.4f}"
+    else:
+        crit_summary = f"top-{save_opt[-1]} {metric_value:.2f}%"
     typer.echo(
         f"Training complete (augmentation: {results['augmentation_level']}). "
-        f"Best {eval_label} loss {results['best_eval_loss']:.4f} at epoch {results['best_epoch']} "
+        f"Best {eval_label} {crit_summary} at epoch {results['best_epoch']} "
         f"(top-1/top-3/top-5: {results['best_eval_top1']:.2f}% / "
-        f"{results['best_eval_top3']:.2f}% / {results['best_eval_top5']:.2f}%)"
+        f"{results['best_eval_top3']:.2f}% / {results['best_eval_top5']:.2f}%, loss {results['best_eval_loss']:.4f})"
     )
     typer.echo(
-        f"Test loss {results['test_loss']:.4f}, "
-        f"top-1/top-3/top-5: {results['test_top1']:.2f}% / "
-        f"{results['test_top3']:.2f}% / {results['test_top5']:.2f}%"
+        f"Test top-1/top-3/top-5: {results['test_top1']:.2f}% / "
+        f"{results['test_top3']:.2f}% / {results['test_top5']:.2f}% "
+        f"(loss {results['test_loss']:.4f})"
     )
     typer.echo(f"Checkpoint saved to {results['checkpoint_path']}")
 

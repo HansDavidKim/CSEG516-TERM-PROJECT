@@ -310,6 +310,7 @@ def train(
     checkpoint_dir: str = "checkpoints",
     load_pretrained: bool = True,
     augmentation_level: str | None = None,
+    saving_option: str | None = None,
 ) -> Dict[str, float | int | str]:
     device = resolve_device()
     print(f"Using device: {device}")
@@ -324,6 +325,11 @@ def train(
     patience = patience if patience is not None else cfg.get("patience", 5)
     num_workers = num_workers or min(4, os.cpu_count() or 1)
     aug_level = (augmentation_level or cfg.get("augmentation_level", "normal")).lower()
+    save_option = (saving_option or cfg.get("saving_option", "top5")).lower()
+
+    allowed_save_options = {"top1", "top3", "top5", "loss"}
+    if save_option not in allowed_save_options:
+        raise ValueError(f"saving_option must be one of {allowed_save_options}, got '{save_option}'.")
 
     train_tf, eval_tf = get_transforms(aug_level)
     root = Path(data_root)
@@ -358,7 +364,7 @@ def train(
                                 learning_rate=learning_rate, momentum=momentum, weight_decay=weight_decay)
 
     best_eval_loss = float("inf")
-    best_eval_top1 = -float("inf")
+    best_metric_value = float("inf") if save_option == "loss" else -float("inf")
     best_epoch = 0
     best_eval_metrics: Dict[str, float] = {"top1": 0.0, "top3": 0.0, "top5": 0.0}
     patience_counter = 0
@@ -374,26 +380,44 @@ def train(
             f"Top-1: {eval_metrics['top1']:.2f}% | Top-3: {eval_metrics['top3']:.2f}% | Top-5: {eval_metrics['top5']:.2f}%"
         )
 
-        if eval_metrics["top1"] > best_eval_top1:
-            best_eval_top1 = eval_metrics["top1"]
+        metric_lookup = {
+            "top1": eval_metrics["top1"],
+            "top3": eval_metrics["top3"],
+            "top5": eval_metrics["top5"],
+            "loss": eval_loss,
+        }
+        current_metric = metric_lookup[save_option]
+
+        improved = current_metric < best_metric_value if save_option == "loss" else current_metric > best_metric_value
+
+        if improved:
+            best_metric_value = current_metric
             best_eval_loss = eval_loss
             best_epoch = epoch
             best_eval_metrics = eval_metrics
             patience_counter = 0
             torch.save({"model": model.state_dict(), "arc_head": arc_head.state_dict(),
                         "epoch": epoch, "eval_loss": eval_loss, "eval_metrics": eval_metrics,
-                        "augmentation_level": aug_level, "eval_split": eval_name}, ckpt_path)
+                        "augmentation_level": aug_level, "eval_split": eval_name,
+                        "saving_option": save_option, "metric_value": best_metric_value}, ckpt_path)
         else:
             patience_counter += 1
             if patience_counter >= patience:
                 print("Early stopping.")
                 break
 
+    if save_option == "loss":
+        criterion_label = "Loss"
+        criterion_value = f"{best_eval_loss:.4f}"
+    else:
+        criterion_label = f"Top-{save_option[-1]}"
+        criterion_value = f"{best_metric_value:.2f}%"
+
     print(
-        f"Best {eval_name} Top-1: {best_eval_top1:.2f}% at epoch {best_epoch} | "
-        f"Loss {best_eval_loss:.4f} | "
+        f"Best {eval_name} checkpoint ({criterion_label}): {criterion_value} at epoch {best_epoch} | "
+        f"Top-1 {best_eval_metrics['top1']:.2f}% | "
         f"Top-3 {best_eval_metrics['top3']:.2f}% | "
-        f"Top-5 {best_eval_metrics['top5']:.2f}%"
+        f"Top-5 {best_eval_metrics['top5']:.2f}% | Loss {best_eval_loss:.4f}"
     )
     test_loss, test_metrics = run_epoch(model, arc_head, test_dl, criterion, device, optimizer=None, desc="Test")
     print(
@@ -412,7 +436,9 @@ def train(
         "best_eval_top3": best_eval_metrics["top3"],
         "best_eval_top5": best_eval_metrics["top5"],
         "best_eval_loss": best_eval_loss,
+        "best_metric_value": best_metric_value,
         "augmentation_level": aug_level,
+        "saving_option": save_option,
         "test_top1": test_metrics["top1"],
         "test_top3": test_metrics["top3"],
         "test_top5": test_metrics["top5"],
