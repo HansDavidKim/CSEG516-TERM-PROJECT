@@ -26,6 +26,7 @@ import torch.nn.functional as F
 
 class ArcMarginProduct(nn.Module):
     """Implements the additive angular margin for ArcFace."""
+
     def __init__(self, in_features: int, out_features: int, s: float = 64.0, m: float = 0.5):
         super().__init__()
         self.in_features = in_features
@@ -35,15 +36,24 @@ class ArcMarginProduct(nn.Module):
         self.weight = nn.Parameter(torch.FloatTensor(out_features, in_features))
         nn.init.xavier_uniform_(self.weight)
 
+    def _cosine(self, features: torch.Tensor) -> torch.Tensor:
+        cosine = F.linear(F.normalize(features), F.normalize(self.weight))
+        return cosine.clamp(-1.0, 1.0)
+
     def forward(self, features: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
-        cosine = F.linear(F.normalize(features), F.normalize(self.weight))  # (B, C)
-        cosine = cosine.clamp(-1.0, 1.0)
+        cosine = self._cosine(features)
         theta = torch.acos(cosine)
-        phi = torch.cos(theta + self.m)  # margin added
+        phi = torch.cos(theta + self.m)
         one_hot = torch.zeros_like(cosine)
         one_hot.scatter_(1, labels.view(-1, 1), 1.0)
-        logits = self.s * torch.where(one_hot.bool(), phi, cosine)
-        return logits
+        logits = torch.where(one_hot.bool(), phi, cosine)
+        return self.s * logits
+
+    @torch.no_grad()
+    def inference_logits(self, features: torch.Tensor) -> torch.Tensor:
+        """Return scaled cosine logits without margin for evaluation."""
+        cosine = self._cosine(features)
+        return self.s * cosine
 
 
 class ArcFaceLoss(nn.Module):
@@ -250,7 +260,8 @@ def run_epoch(
             optimizer.step()
 
         running_loss += loss.item() * images.size(0)
-        hits = _topk_hits(logits, targets)
+        eval_logits = arc_head.inference_logits(features.detach())
+        hits = _topk_hits(eval_logits, targets)
         for k in topk:
             correct_at_k[k] += hits[k]
         total += images.size(0)

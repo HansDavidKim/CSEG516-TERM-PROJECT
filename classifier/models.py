@@ -18,6 +18,7 @@ class VGG16(nn.Module):
         self.feature = model.features
         self.feat_dim = 512 * 2 * 2
         self.n_classes = n_classes
+        self.embedding_dim = self.feat_dim
 
         ### For more stable learning, we turn off bias
         self.bn = nn.BatchNorm1d(self.feat_dim)
@@ -58,6 +59,7 @@ class ResNet152(nn.Module):
         self.feature = evolve.IR_152_64((64, 64))
         self.feat_dim = 512
         self.num_classes = num_classes
+        self.embedding_dim = self.feat_dim
 
         self.output_layer = nn.Sequential(
             nn.BatchNorm2d(512),
@@ -83,6 +85,7 @@ class FaceNet(nn.Module):
         self.feature = evolve.IR_50_64((64, 64))
         self.feat_dim = 512
         self.num_classes = num_classes
+        self.embedding_dim = self.feat_dim
         self.output_layer = nn.Sequential(
             nn.BatchNorm2d(512),
             nn.Dropout(),
