@@ -249,20 +249,19 @@ def get_transforms(level: str = "normal") -> Tuple[transforms.Compose, transform
         train_tf = transforms.Compose([
             transforms.RandomResizedCrop(
                 64,
-                scale=(0.85, 1.0),
+                scale=(0.9, 1.0),
                 interpolation=InterpolationMode.BICUBIC,
             ),
             transforms.RandomHorizontalFlip(),
-            transforms.TrivialAugmentWide(interpolation=InterpolationMode.BICUBIC),
             transforms.ColorJitter(
-                brightness=0.1,
-                contrast=0.1,
-                saturation=0.1,
-                hue=0.02,
+                brightness=0.05,
+                contrast=0.05,
+                saturation=0.05,
+                hue=0.01,
             ),
             transforms.ToTensor(),
             transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
-            transforms.RandomErasing(p=0.15, scale=(0.02, 0.2), ratio=(0.3, 3.3)),
+            transforms.RandomErasing(p=0.1, scale=(0.02, 0.15), ratio=(0.5, 2.0)),
         ])
     elif level == "strong":
         train_tf = transforms.Compose([
