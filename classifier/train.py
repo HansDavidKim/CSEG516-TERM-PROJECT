@@ -359,9 +359,22 @@ def train(
 
     print(f"Best {eval_name} Loss: {best_loss:.4f}")
     test_loss, test_metrics = run_epoch(model, arc_head, test_dl, criterion, device, optimizer=None, desc="Test")
-    print(f"Test Top1: {test_metrics['top1']:.2f}% | Loss: {test_loss:.4f}")
+    print(
+        "Test accuracy: "
+        f"Top-1 {test_metrics['top1']:.2f}% | "
+        f"Top-3 {test_metrics['top3']:.2f}% | "
+        f"Top-5 {test_metrics['top5']:.2f}% | "
+        f"Loss {test_loss:.4f}"
+    )
     print(f"Checkpoint saved to {ckpt_path}")
-    return {"best_loss": best_loss, "eval_split": eval_name.lower(), "test_top1": test_metrics["top1"], "checkpoint": str(ckpt_path)}
+    return {
+        "best_loss": best_loss,
+        "eval_split": eval_name.lower(),
+        "test_top1": test_metrics["top1"],
+        "test_top3": test_metrics["top3"],
+        "test_top5": test_metrics["top5"],
+        "checkpoint": str(ckpt_path),
+    }
 
 
 if __name__ == "__main__":
