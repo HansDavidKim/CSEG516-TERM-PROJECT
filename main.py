@@ -29,6 +29,12 @@ def train_classifier(
     weight_decay: float = None,
     epoch: int = None,
     patience: int = None,
+    aug_level: str | None = typer.Option(
+        None,
+        "--aug-level",
+        help="Select augmentation intensity: weak, normal, or strong.",
+        case_sensitive=False,
+    ),
     ):
 
     dataset_alias = {
@@ -57,10 +63,20 @@ def train_classifier(
         weight_decay=weight_decay,
         epochs=epoch,
         patience=patience,
+        augmentation_level=aug_level,
     )
 
-    typer.echo(f"Training complete. Best val loss {results['best_val_loss']:.4f} at epoch {results['best_epoch']}")
-    typer.echo(f"Test loss {results['test_loss']:.4f}, test acc {results['test_acc']:.2f}%")
+    typer.echo(
+        "Training complete. "
+        f"Best val loss {results['best_val_loss']:.4f} at epoch {results['best_epoch']} "
+        f"(top-1/top-3/top-5: {results['best_val_top1']:.2f}% / "
+        f"{results['best_val_top3']:.2f}% / {results['best_val_top5']:.2f}%)"
+    )
+    typer.echo(
+        f"Test loss {results['test_loss']:.4f}, "
+        f"top-1/top-3/top-5: {results['test_top1']:.2f}% / "
+        f"{results['test_top3']:.2f}% / {results['test_top5']:.2f}%"
+    )
     typer.echo(f"Checkpoint saved to {results['checkpoint_path']}")
 
 if __name__ == "__main__":

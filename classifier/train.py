@@ -134,12 +134,31 @@ def run_epoch(
     optimizer: torch.optim.Optimizer | None = None,
     desc: str,
     mix_params: Dict[str, float] | None = None,
-) -> Tuple[float, float]:
+) -> Tuple[float, Dict[str, float]]:
     is_train = optimizer is not None
     model.train(is_train)
     running_loss = 0.0
-    correct = 0.0
     total = 0
+    topk = (1, 3, 5)
+    correct_at_k: Dict[int, float] = {k: 0.0 for k in topk}
+
+    def _topk_hits(logits: torch.Tensor, targets: torch.Tensor) -> Dict[int, float]:
+        if logits.ndim != 2:
+            raise ValueError(f"Expected 2D logits tensor, got shape {logits.shape}")
+        max_k = min(max(topk), logits.size(1))
+        _, pred = logits.topk(max_k, dim=1, largest=True, sorted=True)
+        pred = pred.t()
+        targets_expanded = targets.view(1, -1).expand_as(pred)
+        matches = pred.eq(targets_expanded)
+        hits: Dict[int, float] = {}
+        for k in topk:
+            actual_k = min(k, max_k)
+            if actual_k <= 0:
+                hits[k] = 0.0
+                continue
+            correct_k = matches[:actual_k].reshape(-1).float().sum().item()
+            hits[k] = correct_k
+        return hits
 
     progress = tqdm(dataloader, desc=desc, leave=False)
     for images, targets in progress:
@@ -172,27 +191,42 @@ def run_epoch(
             loss.backward()
             optimizer.step()
 
-        preds = logits.argmax(dim=1)
         running_loss += loss.item() * images.size(0)
         if mixed:
-            correct += (
-                lam * (preds == targets_a).sum().item()
-                + (1.0 - lam) * (preds == targets_b).sum().item()
-            )
+            hits_a = _topk_hits(logits, targets_a)
+            hits_b = _topk_hits(logits, targets_b)
+            for k in topk:
+                correct_at_k[k] += lam * hits_a[k] + (1.0 - lam) * hits_b[k]
         else:
-            correct += (preds == targets).sum().item()
+            hits = _topk_hits(logits, targets)
+            for k in topk:
+                correct_at_k[k] += hits[k]
         total += images.size(0)
 
         avg_loss = running_loss / total
-        accuracy = correct / total * 100.0
-        progress.set_postfix(loss=f"{avg_loss:.4f}", acc=f"{accuracy:.2f}%")
+        accuracy_metrics = {
+            f"top{k}": (correct_at_k[k] / total * 100.0) if total else 0.0 for k in topk
+        }
+        progress.set_postfix(
+            loss=f"{avg_loss:.4f}",
+            top1=f"{accuracy_metrics['top1']:.2f}%",
+            top3=f"{accuracy_metrics['top3']:.2f}%",
+            top5=f"{accuracy_metrics['top5']:.2f}%",
+        )
 
-    return running_loss / total, correct / total * 100.0
+    return running_loss / total, {
+        f"top{k}": (correct_at_k[k] / total * 100.0) if total else 0.0 for k in topk
+    }
 
 
-def evaluate(model: nn.Module, dataloader: DataLoader, criterion: nn.Module, device: torch.device) -> Tuple[float, float]:
+def evaluate(
+    model: nn.Module,
+    dataloader: DataLoader,
+    criterion: nn.Module,
+    device: torch.device,
+) -> Tuple[float, Dict[str, float]]:
     if dataloader is None:
-        return 0.0, 0.0
+        return 0.0, {"top1": 0.0, "top3": 0.0, "top5": 0.0}
     return run_epoch(model, dataloader, criterion, device, optimizer=None, desc="Valid")
 
 
@@ -200,25 +234,59 @@ IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
 
 
-def get_transforms() -> Tuple[transforms.Compose, transforms.Compose]:
-    train_tf = transforms.Compose([
-        transforms.RandomResizedCrop(
-            64,
-            scale=(0.8, 1.0),
-            interpolation=InterpolationMode.BICUBIC,
-        ),
-        transforms.RandomHorizontalFlip(),
-        transforms.TrivialAugmentWide(interpolation=InterpolationMode.BICUBIC),
-        transforms.ColorJitter(
-            brightness=0.1,
-            contrast=0.1,
-            saturation=0.1,
-            hue=0.02,
-        ),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
-        transforms.RandomErasing(p=0.2, scale=(0.02, 0.2), ratio=(0.3, 3.3)),
-    ])
+def get_transforms(level: str = "normal") -> Tuple[transforms.Compose, transforms.Compose]:
+    level = level.lower()
+
+    if level == "weak":
+        train_tf = transforms.Compose([
+            transforms.Resize(72, interpolation=InterpolationMode.BICUBIC),
+            transforms.RandomCrop(64),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+        ])
+    elif level == "normal":
+        train_tf = transforms.Compose([
+            transforms.RandomResizedCrop(
+                64,
+                scale=(0.85, 1.0),
+                interpolation=InterpolationMode.BICUBIC,
+            ),
+            transforms.RandomHorizontalFlip(),
+            transforms.TrivialAugmentWide(interpolation=InterpolationMode.BICUBIC),
+            transforms.ColorJitter(
+                brightness=0.1,
+                contrast=0.1,
+                saturation=0.1,
+                hue=0.02,
+            ),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+            transforms.RandomErasing(p=0.15, scale=(0.02, 0.2), ratio=(0.3, 3.3)),
+        ])
+    elif level == "strong":
+        train_tf = transforms.Compose([
+            transforms.RandomResizedCrop(
+                64,
+                scale=(0.8, 1.0),
+                interpolation=InterpolationMode.BICUBIC,
+            ),
+            transforms.RandomHorizontalFlip(),
+            transforms.TrivialAugmentWide(interpolation=InterpolationMode.BICUBIC),
+            transforms.ColorJitter(
+                brightness=0.2,
+                contrast=0.2,
+                saturation=0.2,
+                hue=0.04,
+            ),
+            transforms.RandomGrayscale(p=0.1),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+            transforms.RandomErasing(p=0.3, scale=(0.02, 0.3), ratio=(0.2, 4.0)),
+        ])
+    else:
+        raise ValueError("augmentation level must be one of: weak, normal, strong")
+
     eval_tf = transforms.Compose([
         transforms.Resize(72, interpolation=InterpolationMode.BICUBIC),
         transforms.CenterCrop(64),
@@ -296,10 +364,11 @@ def train(
     num_workers: int | None = None,
     checkpoint_dir: str = "checkpoints",
     load_pretrained: bool = True,
-    mixup_alpha: float = 0.8,
-    cutmix_alpha: float = 1.0,
-    mix_prob: float = 0.7,
-    mix_switch_prob: float = 0.5,
+    mixup_alpha: float | None = None,
+    cutmix_alpha: float | None = None,
+    mix_prob: float | None = None,
+    mix_switch_prob: float | None = None,
+    augmentation_level: str | None = None,
 ) -> Dict[str, float | int | str]:
     device = resolve_device()
     if device.type != "mps":
@@ -314,6 +383,7 @@ def train(
     cfg_weight_decay = classifier_config.get("weight_decay", 0.0)
     cfg_epochs = classifier_config["epoch"]
     cfg_patience = classifier_config.get("patience", 5)
+    cfg_aug_level = classifier_config.get("augmentation_level", "normal")
 
     batch_size = batch_size or cfg_batch
     learning_rate = learning_rate or cfg_lr
@@ -323,13 +393,31 @@ def train(
     epochs = epochs or cfg_epochs
     patience = patience if patience is not None else cfg_patience
     num_workers = num_workers if num_workers is not None else min(4, os.cpu_count() or 1)
+    aug_level = (augmentation_level or cfg_aug_level).lower()
+
+    mix_defaults = {
+        "weak": {"mixup_alpha": 0.0, "cutmix_alpha": 0.0, "prob": 0.0, "switch_prob": 0.5},
+        "normal": {"mixup_alpha": 0.0, "cutmix_alpha": 0.0, "prob": 0.0, "switch_prob": 0.5},
+        "strong": {"mixup_alpha": 0.8, "cutmix_alpha": 1.0, "prob": 0.7, "switch_prob": 0.5},
+    }
+    if aug_level not in mix_defaults:
+        raise ValueError("augmentation level must be one of: weak, normal, strong")
+
+    mix_default = mix_defaults[aug_level]
+    mixup_alpha = mixup_alpha if mixup_alpha is not None else mix_default["mixup_alpha"]
+    cutmix_alpha = cutmix_alpha if cutmix_alpha is not None else mix_default["cutmix_alpha"]
+    mix_prob = mix_prob if mix_prob is not None else mix_default["prob"]
+    mix_switch_prob = (
+        mix_switch_prob if mix_switch_prob is not None else mix_default["switch_prob"]
+    )
 
     data_root_path = Path(data_root)
     train_root = data_root_path / "train"
     valid_root = data_root_path / "valid"
     test_root = data_root_path / "test"
 
-    train_tf, eval_tf = get_transforms()
+    train_tf, eval_tf = get_transforms(aug_level)
+    print(f"Using augmentation level: {aug_level}")
     train_dataset = CelebADirectoryDataset(train_root, transform=train_tf)
     class_to_idx = train_dataset.class_to_idx
     valid_dataset = CelebADirectoryDataset(valid_root, transform=eval_tf, class_to_idx=class_to_idx)
@@ -375,10 +463,11 @@ def train(
     best_val_loss = float("inf")
     best_epoch = 0
     patience_counter = 0
+    best_val_metrics: Dict[str, float] = {"top1": 0.0, "top3": 0.0, "top5": 0.0}
 
     epoch_iterator = tqdm(range(1, epochs + 1), desc="Epochs")
     for epoch in epoch_iterator:
-        train_loss, train_acc = run_epoch(
+        train_loss, train_metrics = run_epoch(
             model,
             train_loader,
             criterion,
@@ -392,13 +481,17 @@ def train(
                 "switch_prob": mix_switch_prob,
             },
         )
-        val_loss, val_acc = evaluate(model, valid_loader, criterion, device)
+        val_loss, val_metrics = evaluate(model, valid_loader, criterion, device)
 
         epoch_iterator.set_postfix(
             train_loss=f"{train_loss:.4f}",
-            train_acc=f"{train_acc:.2f}%",
+            train_top1=f"{train_metrics['top1']:.2f}%",
+            train_top3=f"{train_metrics['top3']:.2f}%",
+            train_top5=f"{train_metrics['top5']:.2f}%",
             val_loss=f"{val_loss:.4f}",
-            val_acc=f"{val_acc:.2f}%",
+            val_top1=f"{val_metrics['top1']:.2f}%",
+            val_top3=f"{val_metrics['top3']:.2f}%",
+            val_top5=f"{val_metrics['top5']:.2f}%",
         )
 
         improved = val_loss < best_val_loss
@@ -406,12 +499,13 @@ def train(
             best_val_loss = val_loss
             best_epoch = epoch
             patience_counter = 0
+            best_val_metrics = val_metrics
             torch.save(
                 {
                     "model_name": model_name,
                     "state_dict": model.state_dict(),
                     "val_loss": val_loss,
-                    "val_acc": val_acc,
+                    "val_metrics": val_metrics,
                     "epoch": epoch,
                 },
                 ckpt_path,
@@ -424,8 +518,12 @@ def train(
             break
 
     print(f"Best validation loss: {best_val_loss:.4f} at epoch {best_epoch}")
+    print(
+        "Best validation accuracy (top-1/top-3/top-5): "
+        f"{best_val_metrics['top1']:.2f}% / {best_val_metrics['top3']:.2f}% / {best_val_metrics['top5']:.2f}%"
+    )
 
-    test_loss, test_acc = run_epoch(
+    test_loss, test_metrics = run_epoch(
         model,
         test_loader,
         criterion,
@@ -433,14 +531,23 @@ def train(
         optimizer=None,
         desc="Test",
     )
-    print(f"Test loss: {test_loss:.4f} | Test accuracy: {test_acc:.2f}%")
+    print(
+        "Test accuracy (top-1/top-3/top-5): "
+        f"{test_metrics['top1']:.2f}% / {test_metrics['top3']:.2f}% / {test_metrics['top5']:.2f}%"
+    )
+    print(f"Test loss: {test_loss:.4f}")
     print(f"Best checkpoint saved to {ckpt_path}")
 
     return {
         "best_val_loss": best_val_loss,
         "best_epoch": best_epoch,
         "test_loss": test_loss,
-        "test_acc": test_acc,
+        "best_val_top1": best_val_metrics["top1"],
+        "best_val_top3": best_val_metrics["top3"],
+        "best_val_top5": best_val_metrics["top5"],
+        "test_top1": test_metrics["top1"],
+        "test_top3": test_metrics["top3"],
+        "test_top5": test_metrics["top5"],
         "checkpoint_path": str(ckpt_path),
     }
 
