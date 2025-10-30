@@ -280,17 +280,31 @@ def get_transforms(level: str = "normal") -> Tuple[transforms.Compose, transform
                 interpolation=InterpolationMode.BICUBIC,
             ),
             transforms.RandomHorizontalFlip(),
-            transforms.TrivialAugmentWide(interpolation=InterpolationMode.BICUBIC),
-            transforms.ColorJitter(
-                brightness=0.2,
-                contrast=0.2,
-                saturation=0.2,
-                hue=0.04,
-            ),
-            transforms.RandomGrayscale(p=0.1),
+            transforms.RandomApply([
+                transforms.ColorJitter(
+                    brightness=0.15,
+                    contrast=0.15,
+                    saturation=0.15,
+                    hue=0.03,
+                )
+            ], p=0.6),
+            transforms.RandomApply([
+                transforms.RandomAffine(
+                    degrees=10,
+                    translate=(0.05, 0.05),
+                    scale=(0.9, 1.1),
+                    interpolation=InterpolationMode.BILINEAR,
+                )
+            ], p=0.4),
+            transforms.RandomApply([
+                transforms.RandomPerspective(distortion_scale=0.25, p=1.0)
+            ], p=0.3),
+            transforms.RandomApply([
+                transforms.GaussianBlur(kernel_size=3, sigma=(0.2, 0.8))
+            ], p=0.3),
             transforms.ToTensor(),
             transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
-            transforms.RandomErasing(p=0.3, scale=(0.02, 0.3), ratio=(0.2, 4.0)),
+            transforms.RandomErasing(p=0.2, scale=(0.02, 0.25), ratio=(0.2, 3.0)),
         ])
     else:
         raise ValueError("augmentation level must be one of: weak, normal, strong")
