@@ -230,8 +230,8 @@ def evaluate(
     return run_epoch(model, dataloader, criterion, device, optimizer=None, desc="Valid")
 
 
-IMAGENET_MEAN = (0.485, 0.456, 0.406)
-IMAGENET_STD = (0.229, 0.224, 0.225)
+IMAGENET_MEAN = (0.5177432849816936, 0.4284403704227314, 0.3802497031788904)
+IMAGENET_STD = (0.3042383008658459, 0.28450564790466937, 0.28268543119696465)
 
 
 def get_transforms(level: str = "normal") -> Tuple[transforms.Compose, transforms.Compose]:
