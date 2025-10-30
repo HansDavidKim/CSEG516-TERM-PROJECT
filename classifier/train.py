@@ -276,35 +276,35 @@ def get_transforms(level: str = "normal") -> Tuple[transforms.Compose, transform
         train_tf = transforms.Compose([
             transforms.RandomResizedCrop(
                 64,
-                scale=(0.8, 1.0),
+                scale=(0.85, 1.0),
                 interpolation=InterpolationMode.BICUBIC,
             ),
             transforms.RandomHorizontalFlip(),
             transforms.RandomApply([
                 transforms.ColorJitter(
-                    brightness=0.15,
-                    contrast=0.15,
-                    saturation=0.15,
-                    hue=0.03,
+                    brightness=0.12,
+                    contrast=0.12,
+                    saturation=0.12,
+                    hue=0.025,
                 )
             ], p=0.6),
             transforms.RandomApply([
                 transforms.RandomAffine(
-                    degrees=10,
-                    translate=(0.05, 0.05),
-                    scale=(0.9, 1.1),
+                    degrees=8,
+                    translate=(0.04, 0.04),
+                    scale=(0.93, 1.07),
                     interpolation=InterpolationMode.BILINEAR,
                 )
             ], p=0.4),
             transforms.RandomApply([
-                transforms.RandomPerspective(distortion_scale=0.25, p=1.0)
-            ], p=0.3),
+                transforms.RandomPerspective(distortion_scale=0.2, p=1.0)
+            ], p=0.25),
             transforms.RandomApply([
-                transforms.GaussianBlur(kernel_size=3, sigma=(0.2, 0.8))
-            ], p=0.3),
+                transforms.GaussianBlur(kernel_size=3, sigma=(0.15, 0.6))
+            ], p=0.2),
             transforms.ToTensor(),
             transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
-            transforms.RandomErasing(p=0.2, scale=(0.02, 0.25), ratio=(0.2, 3.0)),
+            transforms.RandomErasing(p=0.15, scale=(0.02, 0.2), ratio=(0.3, 2.5)),
         ])
     else:
         raise ValueError("augmentation level must be one of: weak, normal, strong")
