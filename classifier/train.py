@@ -350,6 +350,8 @@ def train(
                                 learning_rate=learning_rate, momentum=momentum, weight_decay=weight_decay)
 
     best_loss = float("inf")
+    best_epoch = 0
+    best_eval_metrics: Dict[str, float] = {"top1": 0.0, "top3": 0.0, "top5": 0.0}
     patience_counter = 0
     ckpt_path = Path(checkpoint_dir) / f"{model_name.lower()}_arcface_best.pt"
     ckpt_path.parent.mkdir(parents=True, exist_ok=True)
@@ -365,16 +367,24 @@ def train(
 
         if eval_loss < best_loss:
             best_loss = eval_loss
+            best_epoch = epoch
+            best_eval_metrics = eval_metrics
             patience_counter = 0
             torch.save({"model": model.state_dict(), "arc_head": arc_head.state_dict(),
-                        "epoch": epoch, "eval_loss": eval_loss, "eval_metrics": eval_metrics}, ckpt_path)
+                        "epoch": epoch, "eval_loss": eval_loss, "eval_metrics": eval_metrics,
+                        "augmentation_level": aug_level, "eval_split": eval_name}, ckpt_path)
         else:
             patience_counter += 1
             if patience_counter >= patience:
                 print("Early stopping.")
                 break
 
-    print(f"Best {eval_name} Loss: {best_loss:.4f}")
+    print(
+        f"Best {eval_name} Loss: {best_loss:.4f} at epoch {best_epoch} | "
+        f"Top-1 {best_eval_metrics['top1']:.2f}% | "
+        f"Top-3 {best_eval_metrics['top3']:.2f}% | "
+        f"Top-5 {best_eval_metrics['top5']:.2f}%"
+    )
     test_loss, test_metrics = run_epoch(model, arc_head, test_dl, criterion, device, optimizer=None, desc="Test")
     print(
         "Test accuracy: "
@@ -386,10 +396,17 @@ def train(
     print(f"Checkpoint saved to {ckpt_path}")
     return {
         "best_loss": best_loss,
+        "best_epoch": best_epoch,
         "eval_split": eval_name.lower(),
+        "best_eval_top1": best_eval_metrics["top1"],
+        "best_eval_top3": best_eval_metrics["top3"],
+        "best_eval_top5": best_eval_metrics["top5"],
+        "best_eval_loss": best_loss,
+        "augmentation_level": aug_level,
         "test_top1": test_metrics["top1"],
         "test_top3": test_metrics["top3"],
         "test_top5": test_metrics["top5"],
+        "test_loss": test_loss,
         "checkpoint": str(ckpt_path),
     }
 
