@@ -67,7 +67,7 @@ def train_classifier(
     )
 
     typer.echo(
-        "Training complete. "
+        f"Training complete (augmentation: {results['augmentation_level']}). "
         f"Best val loss {results['best_val_loss']:.4f} at epoch {results['best_epoch']} "
         f"(top-1/top-3/top-5: {results['best_val_top1']:.2f}% / "
         f"{results['best_val_top3']:.2f}% / {results['best_val_top5']:.2f}%)"

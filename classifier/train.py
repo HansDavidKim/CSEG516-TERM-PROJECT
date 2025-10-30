@@ -458,7 +458,7 @@ def train(
 
     checkpoint_dir_path = Path(checkpoint_dir)
     checkpoint_dir_path.mkdir(parents=True, exist_ok=True)
-    ckpt_path = checkpoint_dir_path / f"{model_name.lower()}_celeba_best.pt"
+    ckpt_path = checkpoint_dir_path / f"{model_name.lower()}_{aug_level}_celeba_best.pt"
 
     best_val_loss = float("inf")
     best_epoch = 0
@@ -507,6 +507,7 @@ def train(
                     "val_loss": val_loss,
                     "val_metrics": val_metrics,
                     "epoch": epoch,
+                    "augmentation_level": aug_level,
                 },
                 ckpt_path,
             )
@@ -548,6 +549,7 @@ def train(
         "test_top1": test_metrics["top1"],
         "test_top3": test_metrics["top3"],
         "test_top5": test_metrics["top5"],
+        "augmentation_level": aug_level,
         "checkpoint_path": str(ckpt_path),
     }
 
