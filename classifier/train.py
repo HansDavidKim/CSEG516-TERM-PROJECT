@@ -356,7 +356,36 @@ def train(
         eval_name = "Test"
 
     num_classes = len(class_to_idx)
-    model = create_model(model_name, num_classes, pretrained if load_pretrained else None).to(device)
+
+    weight_path: str | None = pretrained
+    if load_pretrained:
+        if weight_path:
+            candidate_paths = [Path(weight_path)]
+        else:
+            pretrained_dir = Path("pretrained")
+            sanitized = model_name.replace(".", "")
+            candidate_paths = [
+                pretrained_dir / f"{model_name}.tar",
+                pretrained_dir / f"{model_name.lower()}.tar",
+                pretrained_dir / f"{sanitized}.tar",
+                pretrained_dir / f"{sanitized.lower()}.tar",
+            ]
+        resolved_path: Path | None = None
+        for candidate in candidate_paths:
+            if candidate.exists():
+                resolved_path = candidate.resolve()
+                break
+        if resolved_path is None:
+            raise FileNotFoundError(
+                f"Pretrained weights were requested but not found for model '{model_name}'. "
+                f"Searched: {[str(p) for p in candidate_paths]}"
+            )
+        weight_path = str(resolved_path)
+        print(f"Loading pretrained weights from {weight_path}")
+    else:
+        weight_path = None
+
+    model = create_model(model_name, num_classes, weight_path).to(device)
     emb_dim = getattr(model, "embedding_dim", 512)
     arc_head = ArcMarginProduct(emb_dim, num_classes, s=64.0, m=0.5).to(device)
     criterion = ArcFaceLoss()
@@ -444,6 +473,7 @@ def train(
         "test_top5": test_metrics["top5"],
         "test_loss": test_loss,
         "checkpoint_path": str(ckpt_path),
+        "pretrained_path": weight_path,
     }
 
 
