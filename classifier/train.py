@@ -296,12 +296,25 @@ def train(
     root = Path(data_root)
     train_ds = CelebADirectoryDataset(root / "train", transform=train_tf)
     class_to_idx = train_ds.class_to_idx
-    val_ds = CelebADirectoryDataset(root / "valid", transform=eval_tf, class_to_idx=class_to_idx)
+
+    val_path = root / "valid"
+    val_ds: CelebADirectoryDataset | None = None
+    if val_path.exists():
+        try:
+            val_ds = CelebADirectoryDataset(val_path, transform=eval_tf, class_to_idx=class_to_idx)
+        except (FileNotFoundError, RuntimeError):
+            val_ds = None
+
     test_ds = CelebADirectoryDataset(root / "test", transform=eval_tf, class_to_idx=class_to_idx)
 
     train_dl = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers)
-    val_dl = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers)
     test_dl = DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+    if val_ds is not None:
+        eval_dl = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+        eval_name = "Val"
+    else:
+        eval_dl = test_dl
+        eval_name = "Test"
 
     num_classes = len(class_to_idx)
     model = create_model(model_name, num_classes, pretrained if load_pretrained else None).to(device)
@@ -318,26 +331,26 @@ def train(
 
     for epoch in range(1, epochs + 1):
         train_loss, _ = run_epoch(model, arc_head, train_dl, criterion, device, optimizer=optimizer, desc=f"Train {epoch}/{epochs}")
-        val_loss, val_metrics = run_epoch(model, arc_head, val_dl, criterion, device, optimizer=None, desc="Valid")
+        eval_loss, eval_metrics = run_epoch(model, arc_head, eval_dl, criterion, device, optimizer=None, desc=eval_name)
 
-        print(f"Epoch {epoch} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Top1: {val_metrics['top1']:.2f}%")
+        print(f"Epoch {epoch} | Train Loss: {train_loss:.4f} | {eval_name} Loss: {eval_loss:.4f} | Top1: {eval_metrics['top1']:.2f}%")
 
-        if val_loss < best_loss:
-            best_loss = val_loss
+        if eval_loss < best_loss:
+            best_loss = eval_loss
             patience_counter = 0
             torch.save({"model": model.state_dict(), "arc_head": arc_head.state_dict(),
-                        "epoch": epoch, "val_loss": val_loss, "val_metrics": val_metrics}, ckpt_path)
+                        "epoch": epoch, "eval_loss": eval_loss, "eval_metrics": eval_metrics}, ckpt_path)
         else:
             patience_counter += 1
             if patience_counter >= patience:
                 print("Early stopping.")
                 break
 
-    print(f"Best Val Loss: {best_loss:.4f}")
+    print(f"Best {eval_name} Loss: {best_loss:.4f}")
     test_loss, test_metrics = run_epoch(model, arc_head, test_dl, criterion, device, optimizer=None, desc="Test")
     print(f"Test Top1: {test_metrics['top1']:.2f}% | Loss: {test_loss:.4f}")
     print(f"Checkpoint saved to {ckpt_path}")
-    return {"best_loss": best_loss, "test_top1": test_metrics["top1"], "checkpoint": str(ckpt_path)}
+    return {"best_loss": best_loss, "eval_split": eval_name.lower(), "test_top1": test_metrics["top1"], "checkpoint": str(ckpt_path)}
 
 
 if __name__ == "__main__":
