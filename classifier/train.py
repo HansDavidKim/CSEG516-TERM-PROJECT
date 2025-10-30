@@ -250,15 +250,24 @@ def get_transforms(level: str = "normal") -> Tuple[transforms.Compose, transform
             transforms.Resize(72, interpolation=InterpolationMode.BICUBIC),
             transforms.RandomCrop(64),
             transforms.RandomHorizontalFlip(),
-            transforms.ColorJitter(
-                brightness=0.03,
-                contrast=0.03,
-                saturation=0.03,
-                hue=0.005,
-            ),
+            transforms.RandomApply([
+                transforms.ColorJitter(
+                    brightness=0.04,
+                    contrast=0.04,
+                    saturation=0.04,
+                    hue=0.01,
+                )
+            ], p=0.3),
+            transforms.RandomApply([
+                transforms.RandomAffine(
+                    degrees=5,
+                    translate=(0.02, 0.02),
+                    scale=(0.95, 1.05),
+                    interpolation=InterpolationMode.BILINEAR,
+                )
+            ], p=0.2),
             transforms.ToTensor(),
             transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
-            transforms.RandomErasing(p=0.05, scale=(0.02, 0.12), ratio=(0.7, 1.5)),
         ])
     elif level == "strong":
         train_tf = transforms.Compose([
