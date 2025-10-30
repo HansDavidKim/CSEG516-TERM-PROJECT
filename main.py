@@ -66,11 +66,12 @@ def train_classifier(
         augmentation_level=aug_level,
     )
 
+    eval_label = "validation" if results["eval_split"] == "valid" else "test"
     typer.echo(
         f"Training complete (augmentation: {results['augmentation_level']}). "
-        f"Best val loss {results['best_val_loss']:.4f} at epoch {results['best_epoch']} "
-        f"(top-1/top-3/top-5: {results['best_val_top1']:.2f}% / "
-        f"{results['best_val_top3']:.2f}% / {results['best_val_top5']:.2f}%)"
+        f"Best {eval_label} loss {results['best_eval_loss']:.4f} at epoch {results['best_epoch']} "
+        f"(top-1/top-3/top-5: {results['best_eval_top1']:.2f}% / "
+        f"{results['best_eval_top3']:.2f}% / {results['best_eval_top5']:.2f}%)"
     )
     typer.echo(
         f"Test loss {results['test_loss']:.4f}, "

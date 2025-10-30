@@ -428,19 +428,34 @@ def train(
     print(f"Using augmentation level: {aug_level}")
     train_dataset = CelebADirectoryDataset(train_root, transform=train_tf)
     class_to_idx = train_dataset.class_to_idx
-    valid_dataset = CelebADirectoryDataset(valid_root, transform=eval_tf, class_to_idx=class_to_idx)
+
+    eval_split = "valid"
+    valid_loader: DataLoader | None = None
+    if valid_root.is_dir():
+        try:
+            valid_dataset = CelebADirectoryDataset(
+                valid_root,
+                transform=eval_tf,
+                class_to_idx=class_to_idx,
+            )
+        except (FileNotFoundError, RuntimeError):
+            eval_split = "test"
+        else:
+            valid_loader = DataLoader(
+                valid_dataset,
+                batch_size=batch_size,
+                shuffle=False,
+                num_workers=num_workers,
+            )
+    else:
+        eval_split = "test"
+
     test_dataset = CelebADirectoryDataset(test_root, transform=eval_tf, class_to_idx=class_to_idx)
 
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
-        num_workers=num_workers,
-    )
-    valid_loader = DataLoader(
-        valid_dataset,
-        batch_size=batch_size,
-        shuffle=False,
         num_workers=num_workers,
     )
     test_loader = DataLoader(
@@ -468,10 +483,14 @@ def train(
     checkpoint_dir_path.mkdir(parents=True, exist_ok=True)
     ckpt_path = checkpoint_dir_path / f"{model_name.lower()}_{aug_level}_celeba_best.pt"
 
-    best_val_loss = float("inf")
+    eval_loader = valid_loader if valid_loader is not None else test_loader
+    eval_split_display = "Validation" if eval_split == "valid" else "Test"
+    print(f"Early stopping monitored on: {eval_split_display} split")
+
+    best_eval_loss = float("inf")
     best_epoch = 0
     patience_counter = 0
-    best_val_metrics: Dict[str, float] = {"top1": 0.0, "top3": 0.0, "top5": 0.0}
+    best_eval_metrics: Dict[str, float] = {"top1": 0.0, "top3": 0.0, "top5": 0.0}
 
     epoch_iterator = tqdm(range(1, epochs + 1), desc="Epochs")
     for epoch in epoch_iterator:
@@ -489,31 +508,32 @@ def train(
                 "switch_prob": mix_switch_prob,
             },
         )
-        val_loss, val_metrics = evaluate(model, valid_loader, criterion, device)
+        eval_loss, eval_metrics = evaluate(model, eval_loader, criterion, device)
 
         epoch_iterator.set_postfix(
             train_loss=f"{train_loss:.4f}",
             train_top1=f"{train_metrics['top1']:.2f}%",
             train_top3=f"{train_metrics['top3']:.2f}%",
             train_top5=f"{train_metrics['top5']:.2f}%",
-            val_loss=f"{val_loss:.4f}",
-            val_top1=f"{val_metrics['top1']:.2f}%",
-            val_top3=f"{val_metrics['top3']:.2f}%",
-            val_top5=f"{val_metrics['top5']:.2f}%",
+            eval_loss=f"{eval_loss:.4f}",
+            eval_top1=f"{eval_metrics['top1']:.2f}%",
+            eval_top3=f"{eval_metrics['top3']:.2f}%",
+            eval_top5=f"{eval_metrics['top5']:.2f}%",
         )
 
-        improved = val_loss < best_val_loss
+        improved = eval_loss < best_eval_loss
         if improved:
-            best_val_loss = val_loss
+            best_eval_loss = eval_loss
             best_epoch = epoch
             patience_counter = 0
-            best_val_metrics = val_metrics
+            best_eval_metrics = eval_metrics
             torch.save(
                 {
                     "model_name": model_name,
                     "state_dict": model.state_dict(),
-                    "val_loss": val_loss,
-                    "val_metrics": val_metrics,
+                    "eval_split": eval_split,
+                    "eval_loss": eval_loss,
+                    "eval_metrics": eval_metrics,
                     "epoch": epoch,
                     "augmentation_level": aug_level,
                 },
@@ -526,10 +546,10 @@ def train(
             print(f"Early stopping triggered at epoch {epoch}. Best epoch: {best_epoch}")
             break
 
-    print(f"Best validation loss: {best_val_loss:.4f} at epoch {best_epoch}")
+    print(f"Best {eval_split_display.lower()} loss: {best_eval_loss:.4f} at epoch {best_epoch}")
     print(
-        "Best validation accuracy (top-1/top-3/top-5): "
-        f"{best_val_metrics['top1']:.2f}% / {best_val_metrics['top3']:.2f}% / {best_val_metrics['top5']:.2f}%"
+        f"Best {eval_split_display.lower()} accuracy (top-1/top-3/top-5): "
+        f"{best_eval_metrics['top1']:.2f}% / {best_eval_metrics['top3']:.2f}% / {best_eval_metrics['top5']:.2f}%"
     )
 
     test_loss, test_metrics = run_epoch(
@@ -548,12 +568,13 @@ def train(
     print(f"Best checkpoint saved to {ckpt_path}")
 
     return {
-        "best_val_loss": best_val_loss,
+        "eval_split": eval_split,
+        "best_eval_loss": best_eval_loss,
         "best_epoch": best_epoch,
         "test_loss": test_loss,
-        "best_val_top1": best_val_metrics["top1"],
-        "best_val_top3": best_val_metrics["top3"],
-        "best_val_top5": best_val_metrics["top5"],
+        "best_eval_top1": best_eval_metrics["top1"],
+        "best_eval_top3": best_eval_metrics["top3"],
+        "best_eval_top5": best_eval_metrics["top5"],
         "test_top1": test_metrics["top1"],
         "test_top3": test_metrics["top3"],
         "test_top5": test_metrics["top5"],

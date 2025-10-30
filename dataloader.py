@@ -184,13 +184,11 @@ def split_dataset(dataset, seed: int = 42, stratify_column: str | None = 'identi
                 pass
         return ds.train_test_split(test_size=test_size, seed=seed)
 
-    first_split = _train_test_split(dataset, test_size=0.2)
-    valid_test_split = _train_test_split(first_split['test'], test_size=0.5)
+    split = _train_test_split(dataset, test_size=0.1)
 
     return DatasetDict({
-        'train': first_split['train'],
-        'valid': valid_test_split['train'],
-        'test': valid_test_split['test'],
+        'train': split['train'],
+        'test': split['test'],
     })
 
 def preprocess_image(image: Image.Image)->Image.Image:
@@ -321,7 +319,7 @@ def preprocess_dataset(
 
     _log("[preprocess_dataset] Extracting public/private splits", verbose)
     private, public = extract_public(data, num_identities, num_proc=num_proc)
-    _log("[preprocess_dataset] Splitting private dataset into train/valid/test", verbose)
+    _log("[preprocess_dataset] Splitting private dataset into train/test", verbose)
     private = split_dataset(private, seed=seed)
 
     dataset_id = dataset_name.split('/')[-1]
