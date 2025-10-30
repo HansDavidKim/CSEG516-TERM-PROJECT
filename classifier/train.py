@@ -247,21 +247,18 @@ def get_transforms(level: str = "normal") -> Tuple[transforms.Compose, transform
         ])
     elif level == "normal":
         train_tf = transforms.Compose([
-            transforms.RandomResizedCrop(
-                64,
-                scale=(0.9, 1.0),
-                interpolation=InterpolationMode.BICUBIC,
-            ),
+            transforms.Resize(72, interpolation=InterpolationMode.BICUBIC),
+            transforms.RandomCrop(64),
             transforms.RandomHorizontalFlip(),
             transforms.ColorJitter(
-                brightness=0.05,
-                contrast=0.05,
-                saturation=0.05,
-                hue=0.01,
+                brightness=0.03,
+                contrast=0.03,
+                saturation=0.03,
+                hue=0.005,
             ),
             transforms.ToTensor(),
             transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
-            transforms.RandomErasing(p=0.1, scale=(0.02, 0.15), ratio=(0.5, 2.0)),
+            transforms.RandomErasing(p=0.05, scale=(0.02, 0.12), ratio=(0.7, 1.5)),
         ])
     elif level == "strong":
         train_tf = transforms.Compose([
