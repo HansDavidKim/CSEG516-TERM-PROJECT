@@ -349,7 +349,8 @@ def train(
     optimizer = build_optimizer(model, optimizer_name=optimizer_name,
                                 learning_rate=learning_rate, momentum=momentum, weight_decay=weight_decay)
 
-    best_loss = float("inf")
+    best_eval_loss = float("inf")
+    best_eval_top1 = -float("inf")
     best_epoch = 0
     best_eval_metrics: Dict[str, float] = {"top1": 0.0, "top3": 0.0, "top5": 0.0}
     patience_counter = 0
@@ -365,8 +366,9 @@ def train(
             f"Top-1: {eval_metrics['top1']:.2f}% | Top-3: {eval_metrics['top3']:.2f}% | Top-5: {eval_metrics['top5']:.2f}%"
         )
 
-        if eval_loss < best_loss:
-            best_loss = eval_loss
+        if eval_metrics["top1"] > best_eval_top1:
+            best_eval_top1 = eval_metrics["top1"]
+            best_eval_loss = eval_loss
             best_epoch = epoch
             best_eval_metrics = eval_metrics
             patience_counter = 0
@@ -380,8 +382,8 @@ def train(
                 break
 
     print(
-        f"Best {eval_name} Loss: {best_loss:.4f} at epoch {best_epoch} | "
-        f"Top-1 {best_eval_metrics['top1']:.2f}% | "
+        f"Best {eval_name} Top-1: {best_eval_top1:.2f}% at epoch {best_epoch} | "
+        f"Loss {best_eval_loss:.4f} | "
         f"Top-3 {best_eval_metrics['top3']:.2f}% | "
         f"Top-5 {best_eval_metrics['top5']:.2f}%"
     )
@@ -395,19 +397,19 @@ def train(
     )
     print(f"Checkpoint saved to {ckpt_path}")
     return {
-        "best_loss": best_loss,
+        "best_loss": best_eval_loss,
         "best_epoch": best_epoch,
         "eval_split": eval_name.lower(),
         "best_eval_top1": best_eval_metrics["top1"],
         "best_eval_top3": best_eval_metrics["top3"],
         "best_eval_top5": best_eval_metrics["top5"],
-        "best_eval_loss": best_loss,
+        "best_eval_loss": best_eval_loss,
         "augmentation_level": aug_level,
         "test_top1": test_metrics["top1"],
         "test_top3": test_metrics["top3"],
         "test_top5": test_metrics["top5"],
         "test_loss": test_loss,
-        "checkpoint": str(ckpt_path),
+        "checkpoint_path": str(ckpt_path),
     }
 
 
