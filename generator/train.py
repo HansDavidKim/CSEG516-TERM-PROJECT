@@ -249,10 +249,10 @@ def train(
     split: Optional[str] = "train",
     device: Optional[str] = None,
     base_dim: int = 64,
-    critic_steps: int = 5,
-    gp_weight: float = 10.0,
+    critic_steps: int = 3,
+    gp_weight: float = 5.0,
     drift: float = 0.001,
-    instance_noise: float = 0.05,
+    instance_noise: float = 0.0,
     instance_noise_decay: float = 0.98,
 ) -> Dict[str, object]:
     if seed is not None:

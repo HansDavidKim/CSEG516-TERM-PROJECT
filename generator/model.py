@@ -4,19 +4,21 @@ import torch.nn.functional as F
 
 
 class Blur(nn.Module):
-    """Applies a fixed 3x3 blur kernel to reduce checkerboard artefacts after upsampling."""
+    """StyleGAN2-style separable blur with [1, 3, 3, 1] kernel."""
 
     def __init__(self) -> None:
         super().__init__()
-        kernel_1d = torch.tensor([1.0, 2.0, 1.0])
+        kernel_1d = torch.tensor([1.0, 3.0, 3.0, 1.0])
         kernel_2d = kernel_1d[:, None] * kernel_1d[None, :]
         kernel_2d /= kernel_2d.sum()
         self.register_buffer("kernel", kernel_2d)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         channels = x.size(1)
-        kernel = self.kernel.expand(channels, 1, 3, 3)
-        return F.conv2d(x, kernel, padding=1, groups=channels)
+        kernel = self.kernel.expand(channels, 1, 4, 4)
+        # Pad asymmetrically to preserve spatial resolution with even-sized kernel.
+        x = F.pad(x, (1, 2, 1, 2), mode="reflect")
+        return F.conv2d(x, kernel, stride=1, padding=0, groups=channels)
 
 
 class UpsampleBlock(nn.Module):

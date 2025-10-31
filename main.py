@@ -137,11 +137,11 @@ def train_generator(
         min=8,
         help="Base channel dimension for generator and discriminator.",
     ),
-    critic_steps: int = typer.Option(5, min=1, help="Number of discriminator updates per generator step."),
-    gp_weight: float = typer.Option(10.0, help="Gradient penalty weight (WGAN-GP). Set to 0 to disable."),
+    critic_steps: int = typer.Option(3, min=1, help="Number of discriminator updates per generator step."),
+    gp_weight: float = typer.Option(5.0, help="Gradient penalty weight (WGAN-GP). Set to 0 to disable."),
     drift: float = typer.Option(0.001, help="Drift regularization strength."),
     instance_noise: float = typer.Option(
-        0.05,
+        0.0,
         help="Stddev of Gaussian instance noise applied to real/fake images. Use 0 to disable.",
     ),
     instance_noise_decay: float = typer.Option(
