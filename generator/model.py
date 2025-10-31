@@ -2,21 +2,23 @@ import torch
 import torch.nn as nn
 
 
-class PixelNorm(nn.Module):
-    def __init__(self, eps: float = 1e-8) -> None:
+class LayerNorm2d(nn.Module):
+    def __init__(self, channels: int, eps: float = 1e-5) -> None:
         super().__init__()
-        self.eps = eps
+        self.norm = nn.LayerNorm(channels, eps=eps)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        dims = list(range(1, x.ndim))
-        return x * torch.rsqrt(torch.mean(x * x, dim=dims, keepdim=True) + self.eps)
+        b, c, h, w = x.shape
+        reshaped = x.permute(0, 2, 3, 1).contiguous()
+        normalized = self.norm(reshaped)
+        return normalized.permute(0, 3, 1, 2).contiguous()
 
 def dconv_bn_relu(in_dim, out_dim):
     return nn.Sequential(
         nn.ConvTranspose2d(in_dim, out_dim, 5, 2, padding=2, output_padding=1, bias=False),
         nn.BatchNorm2d(out_dim),
         nn.ReLU(),
-        PixelNorm()
+        LayerNorm2d(out_dim)
     )
 
 class Generator(nn.Module):
@@ -27,7 +29,7 @@ class Generator(nn.Module):
             nn.Linear(in_dim, dim * 8 * 4 * 4, bias = False),
             nn.BatchNorm1d(dim * 8 * 4 * 4),
             nn.ReLU(),
-            PixelNorm()
+            nn.LayerNorm(dim * 8 * 4 * 4)
         )
 
         self.l2_5 = nn.Sequential(
