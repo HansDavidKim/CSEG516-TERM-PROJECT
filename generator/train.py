@@ -8,7 +8,6 @@ import torch
 from PIL import Image
 from torch import nn
 from torch.autograd import grad
-from torch.nn.utils import spectral_norm
 from torch.utils.data import DataLoader, Dataset
 from torchvision import datasets, transforms, utils as vutils
 from tqdm.auto import tqdm
@@ -23,15 +22,15 @@ class Discriminator(nn.Module):
     def __init__(self, in_channels: int = 3, dim: int = 64) -> None:
         super().__init__()
         self.net = nn.Sequential(
-            spectral_norm(nn.Conv2d(in_channels, dim, kernel_size=4, stride=2, padding=1)),
+            nn.Conv2d(in_channels, dim, kernel_size=4, stride=2, padding=1),
             nn.LeakyReLU(0.2, inplace=True),
-            spectral_norm(nn.Conv2d(dim, dim * 2, kernel_size=4, stride=2, padding=1)),
+            nn.Conv2d(dim, dim * 2, kernel_size=4, stride=2, padding=1),
             nn.LeakyReLU(0.2, inplace=True),
-            spectral_norm(nn.Conv2d(dim * 2, dim * 4, kernel_size=4, stride=2, padding=1)),
+            nn.Conv2d(dim * 2, dim * 4, kernel_size=4, stride=2, padding=1),
             nn.LeakyReLU(0.2, inplace=True),
-            spectral_norm(nn.Conv2d(dim * 4, dim * 8, kernel_size=4, stride=2, padding=1)),
+            nn.Conv2d(dim * 4, dim * 8, kernel_size=4, stride=2, padding=1),
             nn.LeakyReLU(0.2, inplace=True),
-            spectral_norm(nn.Conv2d(dim * 8, 1, kernel_size=4, stride=1, padding=0)),
+            nn.Conv2d(dim * 8, 1, kernel_size=4, stride=1, padding=0),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
