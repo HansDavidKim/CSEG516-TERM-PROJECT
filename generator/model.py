@@ -23,7 +23,7 @@ class Generator(nn.Module):
             dconv_bn_relu(dim * 4, dim * 2),
             dconv_bn_relu(dim * 2, dim),
             nn.ConvTranspose2d(dim, 3, 5, 2, padding=2, output_padding=1),
-            nn.Sigmoid()
+            nn.Tanh()
         )
     
     def forward(self, x):

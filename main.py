@@ -119,7 +119,8 @@ def train_generator(
     beta2: float = typer.Option(0.999, help="Beta2 for Adam optimizer."),
     num_workers: int = typer.Option(4, min=0, help="Number of data loading workers."),
     seed: int = typer.Option(42, help="Random seed. Set to a negative value to disable seeding."),
-    sample_every: int = typer.Option(5, min=1, help="Save sample images every N epochs."),
+    sample_every: int = typer.Option(1, min=1, help="Save sample images every N epochs."),
+    sample_count: int = typer.Option(10, min=1, help="Number of images to export whenever samples are saved."),
     split: str = typer.Option(
         "train",
         "--split",
@@ -135,6 +136,13 @@ def train_generator(
         "--base-dim",
         min=8,
         help="Base channel dimension for generator and discriminator.",
+    ),
+    critic_steps: int = typer.Option(5, min=1, help="Number of discriminator updates per generator step."),
+    gp_weight: float = typer.Option(10.0, help="Gradient penalty weight (WGAN-GP). Set to 0 to disable."),
+    drift: float = typer.Option(0.001, help="Drift regularization strength."),
+    instance_noise: float = typer.Option(
+        0.05,
+        help="Stddev of Gaussian instance noise applied to real/fake images. Use 0 to disable.",
     ),
 ):
     configure_logging()
@@ -152,9 +160,14 @@ def train_generator(
         num_workers=num_workers,
         seed=seed_value,
         sample_every=sample_every,
+        sample_count=sample_count,
         split=split or None,
         device=device,
         base_dim=base_dim,
+        critic_steps=critic_steps,
+        gp_weight=gp_weight,
+        drift=drift,
+        instance_noise=instance_noise,
     )
 
     typer.echo(
@@ -162,7 +175,7 @@ def train_generator(
         f"Checkpoint saved to {results['last_checkpoint']}."
     )
     if results.get("last_sample"):
-        typer.echo(f"Latest sample grid saved to {results['last_sample']}.")
+        typer.echo(f"Latest samples saved under {results['last_sample']}.")
     typer.echo(
         f"Final losses — D: {results['final_d_loss']:.4f}, G: {results['final_g_loss']:.4f}"
     )

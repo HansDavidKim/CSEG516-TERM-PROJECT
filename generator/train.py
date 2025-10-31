@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional
@@ -8,6 +7,8 @@ from typing import Dict, Optional
 import torch
 from PIL import Image
 from torch import nn
+from torch.autograd import grad
+from torch.nn.utils import spectral_norm
 from torch.utils.data import DataLoader, Dataset
 from torchvision import datasets, transforms, utils as vutils
 from tqdm.auto import tqdm
@@ -22,19 +23,15 @@ class Discriminator(nn.Module):
     def __init__(self, in_channels: int = 3, dim: int = 64) -> None:
         super().__init__()
         self.net = nn.Sequential(
-            nn.Conv2d(in_channels, dim, kernel_size=4, stride=2, padding=1),
+            spectral_norm(nn.Conv2d(in_channels, dim, kernel_size=4, stride=2, padding=1)),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(dim, dim * 2, kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(dim * 2),
+            spectral_norm(nn.Conv2d(dim, dim * 2, kernel_size=4, stride=2, padding=1)),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(dim * 2, dim * 4, kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(dim * 4),
+            spectral_norm(nn.Conv2d(dim * 2, dim * 4, kernel_size=4, stride=2, padding=1)),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(dim * 4, dim * 8, kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(dim * 8),
+            spectral_norm(nn.Conv2d(dim * 4, dim * 8, kernel_size=4, stride=2, padding=1)),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(dim * 8, 1, kernel_size=4, stride=1, padding=0),
-            nn.Sigmoid(),
+            spectral_norm(nn.Conv2d(dim * 8, 1, kernel_size=4, stride=1, padding=0)),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -108,6 +105,36 @@ def _has_class_subdirs(path: Path) -> bool:
     return False
 
 
+def _add_instance_noise(images: torch.Tensor, std: float) -> torch.Tensor:
+    if std <= 0:
+        return images
+    noise = torch.randn_like(images) * std
+    return torch.clamp(images + noise, -1.0, 1.0)
+
+
+def _gradient_penalty(
+    discriminator: nn.Module,
+    real: torch.Tensor,
+    fake: torch.Tensor,
+    device: torch.device,
+) -> torch.Tensor:
+    batch_size = real.size(0)
+    alpha = torch.rand(batch_size, 1, 1, 1, device=device)
+    interpolated = (alpha * real + (1 - alpha) * fake).requires_grad_(True)
+
+    mixed_scores = discriminator(interpolated)
+    gradients = grad(
+        outputs=mixed_scores,
+        inputs=interpolated,
+        grad_outputs=torch.ones_like(mixed_scores),
+        create_graph=True,
+        retain_graph=True,
+        only_inputs=True,
+    )[0]
+    gradients = gradients.view(batch_size, -1)
+    return ((gradients.norm(2, dim=1) - 1.0) ** 2).mean()
+
+
 def _build_dataloader(
     data_root: str,
     *,
@@ -123,6 +150,7 @@ def _build_dataloader(
         transforms.Resize(64),
         transforms.CenterCrop(64),
         transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
     ])
 
     if _has_class_subdirs(dataset_path):
@@ -158,6 +186,32 @@ def _save_checkpoint(
     torch.save(checkpoint, path)
 
 
+def _save_samples(
+    generator: Generator,
+    *,
+    latent_dim: int,
+    count: int,
+    epoch: int,
+    directory: Path,
+    device: torch.device,
+) -> Path:
+    generator.eval()
+    with torch.no_grad():
+        noise = torch.randn(count, latent_dim, device=device)
+        samples = generator(noise).cpu()
+
+    epoch_dir = directory / f"epoch_{epoch:03d}"
+    epoch_dir.mkdir(parents=True, exist_ok=True)
+    for idx, sample in enumerate(samples):
+        vutils.save_image(
+            sample,
+            epoch_dir / f"{idx:02d}.png",
+            normalize=True,
+            value_range=(-1, 1),
+        )
+    return epoch_dir
+
+
 @dataclass
 class TrainResult:
     epochs: int
@@ -190,10 +244,15 @@ def train(
     beta2: float = 0.999,
     num_workers: int = 4,
     seed: Optional[int] = 42,
-    sample_every: int = 5,
+    sample_every: int = 1,
+    sample_count: int = 10,
     split: Optional[str] = "train",
     device: Optional[str] = None,
     base_dim: int = 64,
+    critic_steps: int = 5,
+    gp_weight: float = 10.0,
+    drift: float = 0.001,
+    instance_noise: float = 0.05,
 ) -> Dict[str, object]:
     if seed is not None:
         seed_everything(seed)
@@ -212,7 +271,6 @@ def train(
     generator = Generator(in_dim=latent_dim, dim=base_dim).to(resolved_device)
     discriminator = Discriminator(dim=base_dim).to(resolved_device)
 
-    criterion = nn.BCELoss()
     optimizer_g = torch.optim.Adam(generator.parameters(), lr=learning_rate, betas=(beta1, beta2))
     optimizer_d = torch.optim.Adam(discriminator.parameters(), lr=learning_rate, betas=(beta1, beta2))
 
@@ -222,9 +280,11 @@ def train(
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     sample_dir.mkdir(parents=True, exist_ok=True)
 
-    fixed_noise = torch.randn(64, latent_dim, device=resolved_device)
     last_sample_path: Optional[Path] = None
     last_checkpoint_path = checkpoint_dir / "generator_last.pt"
+
+    steps_per_epoch = len(dataloader)
+    data_iterator = iter(dataloader)
 
     for epoch in range(1, epochs + 1):
         generator.train()
@@ -232,57 +292,78 @@ def train(
 
         epoch_g_loss = 0.0
         epoch_d_loss = 0.0
-        num_samples = 0
+        d_updates = 0
+        g_updates = 0
+        current_d_loss = 0.0
+        current_g_loss = 0.0
+        last_batch_size = batch_size
 
-        progress = tqdm(dataloader, desc=f"Epoch {epoch}/{epochs}", leave=False)
-        for real_images, _ in progress:
-            real_images = real_images.to(resolved_device, non_blocking=True)
-            b_size = real_images.size(0)
-            num_samples += b_size
+        progress = tqdm(range(steps_per_epoch), desc=f"Epoch {epoch}/{epochs}", leave=False)
+        for _ in progress:
+            # Critic updates
+            for _ in range(max(1, critic_steps)):
+                try:
+                    real_images, _ = next(data_iterator)
+                except StopIteration:
+                    data_iterator = iter(dataloader)
+                    real_images, _ = next(data_iterator)
 
-            valid = torch.ones(b_size, device=resolved_device)
-            fake = torch.zeros(b_size, device=resolved_device)
+                real_images = real_images.to(resolved_device, non_blocking=True)
+                real_images = _add_instance_noise(real_images, instance_noise)
 
-            # Update discriminator: maximize log(D(x)) + log(1 - D(G(z)))
-            optimizer_d.zero_grad(set_to_none=True)
-            real_logits = discriminator(real_images)
-            loss_real = criterion(real_logits, valid)
+                b_size = real_images.size(0)
+                noise = torch.randn(b_size, latent_dim, device=resolved_device)
+                fake_images = generator(noise).detach()
+                fake_images = _add_instance_noise(fake_images, instance_noise)
 
-            noise = torch.randn(b_size, latent_dim, device=resolved_device)
-            generated = generator(noise)
-            fake_logits = discriminator(generated.detach())
-            loss_fake = criterion(fake_logits, fake)
+                optimizer_d.zero_grad(set_to_none=True)
+                real_scores = discriminator(real_images)
+                fake_scores = discriminator(fake_images)
 
-            loss_d = loss_real + loss_fake
-            loss_d.backward()
-            optimizer_d.step()
+                gp = _gradient_penalty(discriminator, real_images, fake_images, resolved_device) if gp_weight > 0 else torch.tensor(0.0, device=resolved_device)
+                loss_d = fake_scores.mean() - real_scores.mean()
+                if gp_weight > 0:
+                    loss_d = loss_d + gp_weight * gp
+                if drift > 0:
+                    loss_d = loss_d + drift * (real_scores.pow(2).mean())
 
-            # Update generator: maximize log(D(G(z)))
+                loss_d.backward()
+                optimizer_d.step()
+
+                epoch_d_loss += loss_d.item()
+                current_d_loss = loss_d.item()
+                d_updates += 1
+                last_batch_size = b_size
+
+            # Generator update
+            noise = torch.randn(last_batch_size, latent_dim, device=resolved_device)
+            generated_images = generator(noise)
+            generated_images = _add_instance_noise(generated_images, instance_noise)
+
             optimizer_g.zero_grad(set_to_none=True)
-            gen_logits = discriminator(generated)
-            loss_g = criterion(gen_logits, valid)
+            gen_scores = discriminator(generated_images)
+            loss_g = -gen_scores.mean()
             loss_g.backward()
             optimizer_g.step()
 
-            epoch_d_loss += loss_d.item() * b_size
-            epoch_g_loss += loss_g.item() * b_size
+            epoch_g_loss += loss_g.item()
+            current_g_loss = loss_g.item()
+            g_updates += 1
 
-            progress.set_postfix(d_loss=loss_d.item(), g_loss=loss_g.item())
+            progress.set_postfix(d_loss=current_d_loss, g_loss=current_g_loss)
 
-        avg_d_loss = epoch_d_loss / max(1, num_samples)
-        avg_g_loss = epoch_g_loss / max(1, num_samples)
-        tqdm.write(f"[Epoch {epoch:03d}] D_loss: {avg_d_loss:.4f} | G_loss: {avg_g_loss:.4f}")
+        avg_d_loss = epoch_d_loss / max(1, d_updates)
+        avg_g_loss = epoch_g_loss / max(1, g_updates)
+        tqdm.write(f"[Epoch {epoch:03d}] Critic: {avg_d_loss:.4f} | Generator: {avg_g_loss:.4f}")
 
         if sample_every > 0 and epoch % sample_every == 0:
-            generator.eval()
-            with torch.no_grad():
-                samples = generator(fixed_noise).cpu()
-            grid_rows = int(math.sqrt(samples.size(0)))
-            last_sample_path = sample_dir / f"epoch_{epoch:03d}.png"
-            vutils.save_image(
-                samples,
-                last_sample_path,
-                nrow=grid_rows,
+            last_sample_path = _save_samples(
+                generator,
+                latent_dim=latent_dim,
+                count=sample_count,
+                epoch=epoch,
+                directory=sample_dir,
+                device=resolved_device,
             )
 
         _save_checkpoint(
