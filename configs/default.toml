@@ -1,10 +1,10 @@
 [classifier]
 optimizer = 'SGD'
-batch_size = 64
+batch_size = 256
 learning_rate = 0.01
 momentum = 0.9
-weight_decay = 1e-4
-epoch = 50
+weight_decay = 1e-3
+epoch = 100
 early_stopping = true
 patience = 7
 augmentation_level = 'normal'
