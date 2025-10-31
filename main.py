@@ -144,6 +144,10 @@ def train_generator(
         0.05,
         help="Stddev of Gaussian instance noise applied to real/fake images. Use 0 to disable.",
     ),
+    instance_noise_decay: float = typer.Option(
+        0.98,
+        help="Per-epoch multiplicative decay for instance noise (1.0 keeps it constant).",
+    ),
 ):
     configure_logging()
 
@@ -168,6 +172,7 @@ def train_generator(
         gp_weight=gp_weight,
         drift=drift,
         instance_noise=instance_noise,
+        instance_noise_decay=instance_noise_decay,
     )
 
     typer.echo(

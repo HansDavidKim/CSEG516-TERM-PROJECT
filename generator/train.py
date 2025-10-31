@@ -253,6 +253,7 @@ def train(
     gp_weight: float = 10.0,
     drift: float = 0.001,
     instance_noise: float = 0.05,
+    instance_noise_decay: float = 0.98,
 ) -> Dict[str, object]:
     if seed is not None:
         seed_everything(seed)
@@ -260,6 +261,7 @@ def train(
     torch.backends.cudnn.benchmark = True
 
     resolved_device = _select_device(device)
+    noise_decay = max(instance_noise_decay, 0.0)
 
     dataloader = _build_dataloader(
         data_root,
@@ -298,6 +300,7 @@ def train(
         current_g_loss = 0.0
         last_batch_size = batch_size
 
+        noise_std = instance_noise * (noise_decay ** (epoch - 1)) if instance_noise > 0 else 0.0
         progress = tqdm(range(steps_per_epoch), desc=f"Epoch {epoch}/{epochs}", leave=False)
         for _ in progress:
             # Critic updates
@@ -309,12 +312,12 @@ def train(
                     real_images, _ = next(data_iterator)
 
                 real_images = real_images.to(resolved_device, non_blocking=True)
-                real_images = _add_instance_noise(real_images, instance_noise)
+                real_images = _add_instance_noise(real_images, noise_std)
 
                 b_size = real_images.size(0)
                 noise = torch.randn(b_size, latent_dim, device=resolved_device)
                 fake_images = generator(noise).detach()
-                fake_images = _add_instance_noise(fake_images, instance_noise)
+                fake_images = _add_instance_noise(fake_images, noise_std)
 
                 optimizer_d.zero_grad(set_to_none=True)
                 real_scores = discriminator(real_images)
@@ -338,7 +341,7 @@ def train(
             # Generator update
             noise = torch.randn(last_batch_size, latent_dim, device=resolved_device)
             generated_images = generator(noise)
-            generated_images = _add_instance_noise(generated_images, instance_noise)
+            generated_images = _add_instance_noise(generated_images, noise_std)
 
             optimizer_g.zero_grad(set_to_none=True)
             gen_scores = discriminator(generated_images)
