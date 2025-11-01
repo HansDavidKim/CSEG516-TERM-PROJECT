@@ -309,6 +309,7 @@ def train(
     patience: int | None = None,
     num_workers: int | None = None,
     checkpoint_dir: str = "checkpoints",
+    checkpoint_suffix: str | None = None,
     load_pretrained: bool = True,
     augmentation_level: str | None = None,
     saving_option: str | None = None,
@@ -409,7 +410,13 @@ def train(
     best_epoch = 0
     best_eval_metrics: Dict[str, float] = {"top1": 0.0, "top3": 0.0, "top5": 0.0}
     patience_counter = 0
-    ckpt_path = Path(checkpoint_dir) / f"{model_name.lower()}_arcface_best.pt"
+    if checkpoint_suffix:
+        suffix = re.sub(r"[^a-zA-Z0-9]+", "_", checkpoint_suffix.strip()).lower().strip("_")
+    else:
+        suffix = re.sub(r"[^a-zA-Z0-9]+", "_", root.name).lower().strip("_")
+    if not suffix:
+        suffix = "dataset"
+    ckpt_path = Path(checkpoint_dir) / f"{model_name.lower()}_{suffix}_best.pt"
     ckpt_path.parent.mkdir(parents=True, exist_ok=True)
 
     for epoch in range(1, epochs + 1):

@@ -234,7 +234,7 @@ class TrainResult:
 def train(
     *,
     data_root: str,
-    output_dir: str = "checkpoints/generator",
+    output_dir: str = "checkpoints",
     epochs: int = 50,
     batch_size: int = 128,
     latent_dim: int = 100,
@@ -276,13 +276,12 @@ def train(
     optimizer_d = torch.optim.Adam(discriminator.parameters(), lr=learning_rate, betas=(beta1, beta2))
 
     output_path = Path(output_dir)
-    checkpoint_dir = output_path
-    sample_dir = output_path / "samples"
-    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    output_path.mkdir(parents=True, exist_ok=True)
+    sample_dir = output_path / "generator_samples"
     sample_dir.mkdir(parents=True, exist_ok=True)
 
     last_sample_path: Optional[Path] = None
-    last_checkpoint_path = checkpoint_dir / "generator_last.pt"
+    last_checkpoint_path = output_path / "generator_last.pt"
 
     steps_per_epoch = len(dataloader)
     data_iterator = iter(dataloader)

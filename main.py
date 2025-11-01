@@ -43,14 +43,20 @@ def train_classifier(
         case_sensitive=False,
     ),
     ):
-
     dataset_alias = {
         'celeba': 'dataset/private/celeba',
         'facescrub-full': 'dataset/private/facescrub-full',
         'pubfig83': 'dataset/private/pubfig83',
     }
 
-    data_root = dataset_alias.get(data_set.lower(), data_set)
+    dataset_key = data_set.lower()
+    data_root = dataset_alias.get(dataset_key, data_set)
+    checkpoint_suffix_map = {
+        'celeba': 'celeba',
+        'facescrub-full': 'facescrub',
+        'pubfig83': 'pubfig83',
+    }
+    checkpoint_suffix = checkpoint_suffix_map.get(dataset_key)
 
     batch_size = batch_size or classifier_config['batch_size']
     learning_rate = learning_rate or classifier_config['learning_rate']
@@ -72,6 +78,7 @@ def train_classifier(
         patience=patience,
         augmentation_level=aug_level,
         saving_option=saving_option,
+        checkpoint_suffix=checkpoint_suffix,
     )
 
     eval_label = "validation" if results["eval_split"] == "valid" else "test"
@@ -102,7 +109,7 @@ def train_generator(
         help="Root directory containing image data. If it has splits, --split will select one.",
     ),
     output_dir: str = typer.Option(
-        "checkpoints/generator",
+        "checkpoints",
         "--output-dir",
         help="Directory where generator checkpoints and samples are stored.",
     ),
