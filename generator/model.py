@@ -29,7 +29,7 @@ class UpsampleBlock(nn.Module):
         self.upsample = nn.Upsample(scale_factor=2.0, mode="nearest")
         self.blur = Blur()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, bias=False)
-        self.norm = nn.InstanceNorm2d(out_channels, affine=True, eps=1e-5)
+        self.norm = nn.BatchNorm2d(out_channels, eps=1e-5)
         self.act = nn.ReLU(inplace=True)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
