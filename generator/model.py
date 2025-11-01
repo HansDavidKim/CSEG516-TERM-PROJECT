@@ -1,69 +1,40 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
-class Blur(nn.Module):
-    """StyleGAN2-style separable blur with [1, 3, 3, 1] kernel."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        kernel_1d = torch.tensor([1.0, 3.0, 3.0, 1.0])
-        kernel_2d = kernel_1d[:, None] * kernel_1d[None, :]
-        kernel_2d /= kernel_2d.sum()
-        self.register_buffer("kernel", kernel_2d)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        channels = x.size(1)
-        kernel = self.kernel.expand(channels, 1, 4, 4)
-        # Pad asymmetrically to preserve spatial resolution with even-sized kernel.
-        x = F.pad(x, (1, 2, 1, 2), mode="reflect")
-        return F.conv2d(x, kernel, stride=1, padding=0, groups=channels)
-
-
-class UpsampleBlock(nn.Module):
-    """Nearest upsample -> blur -> conv -> InstanceNorm -> activation."""
-
-    def __init__(self, in_channels: int, out_channels: int) -> None:
-        super().__init__()
-        self.upsample = nn.Upsample(scale_factor=2.0, mode="nearest")
-        self.blur = Blur()
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, bias=False)
-        self.norm = nn.BatchNorm2d(out_channels, eps=1e-5)
-        self.act = nn.ReLU(inplace=True)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.upsample(x)
-        x = self.blur(x)
-        x = self.conv(x)
-        x = self.norm(x)
-        return self.act(x)
+def dconv_block(in_channels: int, out_channels: int, *, apply_norm: bool = True) -> nn.Sequential:
+    layers: list[nn.Module] = [
+        nn.ConvTranspose2d(in_channels, out_channels, kernel_size=4, stride=2, padding=1, bias=False)
+    ]
+    if apply_norm:
+        layers.append(nn.BatchNorm2d(out_channels))
+    layers.append(nn.LeakyReLU(0.01, inplace=True))
+    return nn.Sequential(*layers)
 
 
 class Generator(nn.Module):
-    def __init__(self, in_dim: int = 100, dim: int = 64) -> None:
+    def __init__(self, in_dim: int = 100, dim: int = 64, use_batchnorm: bool = True) -> None:
         super().__init__()
+        self.use_batchnorm = use_batchnorm
 
-        self.project = nn.Sequential(
-            nn.Linear(in_dim, dim * 8 * 4 * 4, bias=False),
-            nn.LayerNorm(dim * 8 * 4 * 4),
-            nn.ReLU(inplace=True),
-        )
+        linear_layers: list[nn.Module] = [nn.Linear(in_dim, dim * 8 * 4 * 4, bias=False)]
+        if use_batchnorm:
+            linear_layers.append(nn.BatchNorm1d(dim * 8 * 4 * 4))
+        linear_layers.append(nn.ReLU(inplace=True))
+        self.project = nn.Sequential(*linear_layers)
 
-        self.block1 = UpsampleBlock(dim * 8, dim * 4)
-        self.block2 = UpsampleBlock(dim * 4, dim * 2)
-        self.block3 = UpsampleBlock(dim * 2, dim)
+        self.block1 = dconv_block(dim * 8, dim * 4, apply_norm=use_batchnorm)
+        self.block2 = dconv_block(dim * 4, dim * 2, apply_norm=use_batchnorm)
+        self.block3 = dconv_block(dim * 2, dim, apply_norm=use_batchnorm)
 
         self.to_rgb = nn.Sequential(
-            nn.Upsample(scale_factor=2.0, mode="nearest"),
-            Blur(),
-            nn.Conv2d(dim, 3, kernel_size=3, padding=1),
+            nn.ConvTranspose2d(dim, 3, kernel_size=4, stride=2, padding=1),
             nn.Tanh(),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         y = self.project(x)
-        y = y.view(y.size(0), -1, 4, 4)
+        y = y.view(x.size(0), -1, 4, 4)
         y = self.block1(y)
         y = self.block2(y)
         y = self.block3(y)
