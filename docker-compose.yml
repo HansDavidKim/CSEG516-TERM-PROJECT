@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  # CPU version - for systems without GPU
+  rlb-mi-cpu:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: rlb-mi:cpu
+    container_name: rlb-mi-cpu
+    volumes:
+      # Mount checkpoints directory
+      - ./checkpoints:/app/checkpoints
+      # Mount attack results
+      - ./attack_results:/app/attack_results
+      # Mount dataset (optional - can be large)
+      - ./dataset:/app/dataset
+      # Mount pretrained models
+      - ./pretrained:/app/pretrained
+    environment:
+      - PYTHONUNBUFFERED=1
+    stdin_open: true
+    tty: true
+    profiles:
+      - cpu
+
+  # GPU version - for systems with NVIDIA GPU
+  rlb-mi-gpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.gpu
+    image: rlb-mi:gpu
+    container_name: rlb-mi-gpu
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # Mount checkpoints directory
+      - ./checkpoints:/app/checkpoints
+      # Mount attack results
+      - ./attack_results:/app/attack_results
+      # Mount dataset (optional - can be large)
+      - ./dataset:/app/dataset
+      # Mount pretrained models
+      - ./pretrained:/app/pretrained
+    stdin_open: true
+    tty: true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    profiles:
+      - gpu

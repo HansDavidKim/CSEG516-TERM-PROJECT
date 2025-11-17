@@ -6,6 +6,7 @@ from config import classifier_config
 
 from classifier.train import train
 from generator.train import train as train_generator_model
+from attack.attack import RLB_MI_Attack
 
 app = typer.Typer()
 
@@ -191,6 +192,186 @@ def train_generator(
     typer.echo(
         f"Final losses — D: {results['final_d_loss']:.4f}, G: {results['final_g_loss']:.4f}"
     )
+
+@app.command()
+def run_rlb_mi_attack(
+    generator_checkpoint: str = typer.Option(
+        ...,
+        "--generator",
+        help="Path to trained generator checkpoint (e.g., checkpoints/generator_last.pt)",
+    ),
+    target_model_checkpoint: str = typer.Option(
+        ...,
+        "--target-model",
+        help="Path to target classifier checkpoint (e.g., checkpoints/vgg16_celeba_best.pt)",
+    ),
+    model_name: str = typer.Option(
+        "VGG16",
+        "--model-name",
+        help="Target model architecture: VGG16, ResNet152, or FaceNet",
+    ),
+    target_class: int = typer.Option(
+        ...,
+        "--target-class",
+        help="Target class ID to reconstruct",
+    ),
+    num_classes: int = typer.Option(
+        1000,
+        "--num-classes",
+        help="Number of classes in target model",
+    ),
+    max_episodes: int = typer.Option(
+        40000,
+        "--episodes",
+        help="Number of training episodes for SAC agent",
+    ),
+    diversity_factor: float = typer.Option(
+        0.0,
+        "--alpha",
+        "--diversity",
+        help="Diversity factor (0.0 for accuracy, 0.97 for diversity)",
+    ),
+    latent_dim: int = typer.Option(
+        100,
+        "--latent-dim",
+        help="Dimension of GAN latent space",
+    ),
+    num_images: int = typer.Option(
+        1000,
+        "--num-images",
+        help="Number of images to generate after training",
+    ),
+    top_k: int = typer.Option(
+        10,
+        "--top-k",
+        help="Number of best images to select",
+    ),
+    output_dir: str = typer.Option(
+        "attack_results",
+        "--output-dir",
+        help="Directory to save attack results",
+    ),
+    device: str | None = typer.Option(
+        None,
+        "--device",
+        help="Device override (cuda, mps, or cpu)",
+    ),
+):
+    """Run RLB-MI (Reinforcement Learning-Based Black-box Model Inversion) attack."""
+    import torch
+    from pathlib import Path
+    from generator.model import Generator
+    from classifier.models import VGG16, ResNet152, FaceNet
+    from torchvision import utils as vutils
+
+    configure_logging()
+
+    # Determine device
+    if device:
+        device_obj = torch.device(device)
+    elif torch.cuda.is_available():
+        device_obj = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device_obj = torch.device("mps")
+    else:
+        device_obj = torch.device("cpu")
+
+    typer.echo(f"Using device: {device_obj}")
+
+    # Load generator
+    typer.echo(f"Loading generator from {generator_checkpoint}...")
+    generator = Generator(in_dim=latent_dim, dim=64).to(device_obj)
+    gen_ckpt = torch.load(generator_checkpoint, map_location=device_obj)
+    generator.load_state_dict(gen_ckpt['generator'])
+    generator.eval()
+    typer.echo("Generator loaded successfully.")
+
+    # Load target model
+    typer.echo(f"Loading target model ({model_name}) from {target_model_checkpoint}...")
+    if model_name == "VGG16":
+        target_model = VGG16(num_classes)
+    elif model_name == "ResNet152":
+        target_model = ResNet152(num_classes)
+    elif model_name in {"FaceNet", "Face.evoLVe"}:
+        target_model = FaceNet(num_classes)
+    else:
+        typer.echo(f"Error: Unknown model name '{model_name}'", err=True)
+        raise typer.Exit(1)
+
+    target_ckpt = torch.load(target_model_checkpoint, map_location=device_obj)
+    target_model.load_state_dict(target_ckpt['model'])
+    target_model.to(device_obj)
+    target_model.eval()
+    typer.echo("Target model loaded successfully.")
+
+    # Initialize RLB-MI attack
+    typer.echo(f"Initializing RLB-MI attack for class {target_class}...")
+    attack = RLB_MI_Attack(
+        generator=generator,
+        target_model=target_model,
+        target_class=target_class,
+        latent_dim=latent_dim,
+        device=device_obj,
+        diversity_factor=diversity_factor,
+    )
+
+    # Train agent
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    agent_path = output_path / f"agent_class_{target_class}.pt"
+
+    typer.echo(f"\nTraining SAC agent for {max_episodes} episodes...")
+    metrics = attack.train_agent(
+        max_episodes=max_episodes,
+        verbose=True,
+        log_interval=1000,
+        save_path=str(agent_path),
+    )
+
+    # Generate reconstructed images
+    typer.echo(f"\nGenerating {num_images} images and selecting top {top_k}...")
+    reconstructed_images, confidences, latents = attack.generate_reconstructed_images(
+        num_images=num_images,
+        select_best=True,
+        top_k=top_k,
+    )
+
+    # Save reconstructed images
+    image_grid_path = output_path / f"reconstructed_class_{target_class}.png"
+    vutils.save_image(
+        reconstructed_images,
+        image_grid_path,
+        normalize=True,
+        value_range=(-1, 1),
+        nrow=min(5, top_k),
+    )
+
+    # Save individual images
+    images_dir = output_path / f"class_{target_class}_images"
+    images_dir.mkdir(exist_ok=True)
+    for idx, img in enumerate(reconstructed_images):
+        vutils.save_image(
+            img,
+            images_dir / f"image_{idx:03d}_conf_{confidences[idx]:.4f}.png",
+            normalize=True,
+            value_range=(-1, 1),
+        )
+
+    # Print results
+    typer.echo(f"\n{'='*60}")
+    typer.echo("RLB-MI Attack Complete!")
+    typer.echo(f"{'='*60}")
+    typer.echo(f"Target Class: {target_class}")
+    typer.echo(f"Images Generated: {num_images}")
+    typer.echo(f"Top-K Selected: {top_k}")
+    typer.echo(f"Average Confidence (top-{top_k}): {confidences.mean():.4f}")
+    typer.echo(f"Max Confidence: {confidences.max():.4f}")
+    typer.echo(f"Min Confidence: {confidences.min():.4f}")
+    typer.echo(f"\nResults saved to:")
+    typer.echo(f"  - Agent: {agent_path}")
+    typer.echo(f"  - Image Grid: {image_grid_path}")
+    typer.echo(f"  - Individual Images: {images_dir}")
+    typer.echo(f"{'='*60}")
 
 if __name__ == "__main__":
     app()

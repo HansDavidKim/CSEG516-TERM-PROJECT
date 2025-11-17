@@ -1,0 +1,35 @@
+# RLB-MI Attack - GPU Version (CUDA)
+# Using PyTorch 2.4.0 with CUDA 12.4 and cuDNN 9
+FROM pytorch/pytorch:2.4.0-cuda12.4-cudnn9-devel
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better layer caching
+COPY requirements.txt .
+
+# Install Python dependencies (skip torch/torchvision as they're already installed)
+# Filter out torch and torchvision from requirements
+RUN grep -v "^torch==" requirements.txt | grep -v "^torchvision==" > /tmp/requirements_filtered.txt && \
+    pip install --no-cache-dir -r /tmp/requirements_filtered.txt || \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy project files
+COPY . .
+
+# Create necessary directories
+RUN mkdir -p dataset checkpoints attack_results pretrained
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV CUDA_VISIBLE_DEVICES=0
+
+# Default command - interactive bash
+CMD ["bash"]
