@@ -85,6 +85,28 @@ mkdir -p checkpoints attack_results dataset pretrained
 # - dataset/... (옵션)
 ```
 
+### 1.5. 데이터 로드 및 모델 학습 (컨테이너 내부)
+
+```bash
+# 1. 데이터 로드 (Kaggle 다운로드 및 전처리)
+# .env 파일에 KAGGLE_USERNAME, KAGGLE_KEY가 설정되어 있어야 합니다.
+python main.py load-data
+
+# 2. Classifier 학습 (VGG16, CelebA)
+python main.py train-classifier \
+  --data-set celeba \
+  --model-name VGG16 \
+  --epoch 50 \
+  --batch-size 64
+
+# 3. Generator 학습 (FFHQ)
+python main.py train-generator \
+  --data-root dataset/public/flickrfaceshq-dataset-ffhq \
+  --epochs 50 \
+  --batch-size 128 \
+  --output-dir checkpoints
+```
+
 ### 2. 컨테이너 내부에서 공격 실행
 
 ```bash
@@ -276,3 +298,110 @@ ls -la attack_results/
 - [Docker 공식 문서](https://docs.docker.com/)
 - [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
 - [Docker Compose 문서](https://docs.docker.com/compose/)
+
+## 🔐 Kaggle 인증 설정
+
+Kaggle 데이터셋을 사용하려면 Kaggle API 자격증명이 필요합니다.
+
+### 방법 1: .env 파일 사용 (권장)
+
+1. 프로젝트 루트에 `.env` 파일 생성:
+KAGGLE_USERNAME=your_kaggle_username
+KAGGLE_KEY=your_kaggle_api_key
+2. `docker-compose.yml`에서 환경 변수로 자동 로드됩니다.
+
+### 방법 2: kaggle.json 파일 사용
+
+# 호스트에서 kaggle.json 준비
+# Windows
+mkdir $env:USERPROFILE\.kaggle
+Copy-Item kaggle.json $env:USERPROFILE\.kaggle\kaggle.json
+
+# Linux/Mac
+mkdir -p ~/.kaggle
+cp kaggle.json ~/.kaggle/kaggle.json
+chmod 600 ~/.kaggle/kaggle.json그리고 `docker-compose.yml`에 볼륨 추가:aml
+volumes:
+  - ~/.kaggle:/root/.kaggle## 📊 데이터 로드 및 학습 워크플로우
+
+### 1. 데이터 로드
+
+# 컨테이너 접속
+docker-compose --profile gpu run --rm rlb-mi-gpu bash
+
+# 컨테이너 내부에서 데이터 로드
+python main.py load-data이 명령은:
+- Kaggle에서 데이터셋 다운로드
+- 데이터 전처리 및 public/private split 생성
+- `dataset/` 디렉토리에 저장
+
+### 2. Classifier 학습
+
+# 컨테이너 내부에서
+python main.py train-classifier \
+  --data-set celeba \
+  --model-name VGG16 \
+  --epoch 50 \
+  --batch-size 64학습된 모델은 `checkpoints/vgg16_celeba_best.pt`에 저장됩니다.
+
+### 3. Generator 학습
+ash
+# Public 데이터셋으로 Generator 학습
+python main.py train-generator \
+  --data-root dataset/public/flickrfaceshq-dataset-ffhq \
+  --epochs 50 \
+  --batch-size 128 \
+  --output-dir checkpoints### 4. 완전한 워크플로우 예시
+sh
+# 1. 컨테이너 실행 및 접속
+docker-compose --profile gpu run --rm rlb-mi-gpu bash
+
+# 2. 데이터 로드
+python main.py load-data
+
+# 3. Classifier 학습
+python main.py train-classifier --data-set celeba --model-name VGG16
+
+# 4. Generator 학습
+python main.py train-generator --data-root dataset/public/flickrfaceshq-dataset-ffhq
+
+# 5. 공격 실행 (선택사항)
+python main.py run-rlb-mi-attack \
+  --generator checkpoints/generator_last.pt \
+  --target-model checkpoints/vgg16_celeba_best.pt \
+  --target-class 0### 백그라운드에서 학습 실행
+
+# 컨테이너를 백그라운드로 실행하여 학습
+docker-compose --profile gpu run -d \
+  --name rlb-mi-training \
+  rlb-mi-gpu \
+  python main.py train-classifier --data-set celeba --model-name VGG16
+
+# 로그 확인
+docker logs -f rlb-mi-training
+
+# 학습 완료 후 결과 확인
+ls -la checkpoints/## 🗂️ 디렉토리 구조
+
+학습 후 생성되는 디렉토리 구조:
+
+```
+.
+├── dataset/
+│   ├── private/
+│   │   ├── celeba/          # Private 데이터셋
+│   │   ├── facescrub-full/
+│   │   └── pubfig83/
+│   └── public/
+│       └── flickrfaceshq-dataset-ffhq/  # Public 데이터셋
+├── checkpoints/
+│   ├── vgg16_celeba_best.pt  # 학습된 Classifier
+│   └── generator_last.pt     # 학습된 Generator
+└── attack_results/            # 공격 결과
+```
+
+## ⚠️ 주의사항
+
+1. **데이터 크기**: Kaggle 데이터셋은 크기가 클 수 있으므로 충분한 디스크 공간을 확보하세요.
+2. **학습 시간**: GPU 사용을 권장합니다. CPU로는 학습 시간이 매우 오래 걸릴 수 있습니다.
+3. **메모리**: 대용량 데이터셋의 경우 Docker 메모리 제한을 늘려야 할 수 있습니다.

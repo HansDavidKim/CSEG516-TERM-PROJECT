@@ -7,13 +7,20 @@ from config import classifier_config
 from classifier.train import train
 from generator.train import train as train_generator_model
 from attack.attack import RLB_MI_Attack
+from evaluate_attack import evaluate_attack
+from visualize_results import visualize
 
 app = typer.Typer()
 
+print("DEBUG: main.py loaded")
+
 @app.command()
 def load_data():
+    print("DEBUG: load_data command called")
     configure_logging()
+    print("DEBUG: logging configured, calling dataset_orchestration")
     dataset_orchestration()
+    print("DEBUG: dataset_orchestration finished")
 
 @app.command()
 def hello():
@@ -373,5 +380,9 @@ def run_rlb_mi_attack(
     typer.echo(f"  - Individual Images: {images_dir}")
     typer.echo(f"{'='*60}")
 
+app.command(name="evaluate-attack")(evaluate_attack)
+app.command(name="visualize-results")(visualize)
+
 if __name__ == "__main__":
+    print("DEBUG: Starting app()")
     app()

@@ -411,7 +411,7 @@ def dataset_orchestration():
             dataset,
             sample_size=30_000,
             seed=seed,
-            output_dir=f'dataset/public/{dataset.split('/')[1]}',
+            output_dir=f'dataset/public/{dataset.split("/")[1]}',
             verbose=True
         )
 
