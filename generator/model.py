@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -40,3 +41,18 @@ class Generator(nn.Module):
         y = self.block3(y)
         y = self.to_rgb(y)
         return y
+
+    def generate_from_latent(self, z: torch.Tensor | np.ndarray) -> torch.Tensor:
+        """
+        Generate images from latent vectors.
+        Handles numpy arrays and adds batch dimension if necessary.
+        """
+        if isinstance(z, np.ndarray):
+            z = torch.from_numpy(z).float()
+        
+        if z.dim() == 1:
+            z = z.unsqueeze(0)
+            
+        z = z.to(next(self.parameters()).device)
+        
+        return self.forward(z)
