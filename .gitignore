@@ -10,3 +10,6 @@ __pycache__/
 .env
 dataset/
 *.pt
+paper.pdf
+attack_results/
+runs/

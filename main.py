@@ -192,5 +192,86 @@ def train_generator(
         f"Final losses — D: {results['final_d_loss']:.4f}, G: {results['final_g_loss']:.4f}"
     )
 
+@app.command()
+def train_attack(
+    generator_path: str = typer.Option(..., help="Path to generator checkpoint."),
+    classifier_path: str = typer.Option(..., help="Path to classifier checkpoint."),
+    target_class: int = typer.Option(..., help="Target class to attack."),
+    generator_dim: int = typer.Option(64, help="Generator latent dimension (64 or 128)."),
+    max_episodes: int = typer.Option(40000, help="Maximum number of episodes (paper default: 40000)."),
+    max_step: int = typer.Option(1, help="Maximum steps per episode (paper default: 1)."),
+    z_dim: int = typer.Option(100, help="Latent vector dimension (paper default: 100)."),
+    alpha: float = typer.Option(0.0, help="Diversity factor alpha (paper default: 0.0)."),
+    w1: float = typer.Option(2.0, help="Weight for state score (paper default: 2.0)."),
+    w2: float = typer.Option(2.0, help="Weight for action score (paper default: 2.0)."),
+    w3: float = typer.Option(8.0, help="Weight for distinction score (paper default: 8.0)."),
+    confidence_threshold: float = typer.Option(0.95, help="Confidence threshold for early stopping (default: 0.95)."),
+    seed: int = typer.Option(42, help="Random seed."),
+    device: str = typer.Option("cuda", help="Device to use (cuda/cpu/mps)."),
+):
+    from attack.train_rl import train_attack as train_rl_attack
+    
+    train_rl_attack(
+        generator_path=generator_path,
+        classifier_path=classifier_path,
+        target_class=target_class,
+        generator_dim=generator_dim,
+        max_episodes=max_episodes,
+        max_step=max_step,
+        z_dim=z_dim,
+        alpha=alpha,
+        w1=w1,
+        w2=w2,
+        w3=w3,
+        confidence_threshold=confidence_threshold,
+        seed=seed,
+        device=device,
+    )
+
+@app.command()
+def measure_accuracy(
+    generator_path: str = typer.Option(..., help="Path to generator checkpoint."),
+    target_classifier_path: str = typer.Option(..., help="Path to target classifier checkpoint."),
+    eval_classifier_path: str = typer.Option(..., help="Path to evaluation classifier checkpoint."),
+    num_labels: int = typer.Option(10, help="Number of target classes to attack."),
+    generator_dim: int = typer.Option(64, help="Generator latent dimension (64 or 128)."),
+    max_episodes: int = typer.Option(10000, help="Episodes per target class (default: 10000 for speed)."),
+    max_step: int = typer.Option(1, help="Maximum steps per episode (paper default: 1)."),
+    z_dim: int = typer.Option(100, help="Latent vector dimension (paper default: 100)."),
+    alpha: float = typer.Option(0.0, help="Diversity factor alpha (paper default: 0.0)."),
+    w1: float = typer.Option(2.0, help="Weight for state score (paper default: 2.0)."),
+    w2: float = typer.Option(2.0, help="Weight for action score (paper default: 2.0)."),
+    w3: float = typer.Option(8.0, help="Weight for distinction score (paper default: 8.0)."),
+    confidence_threshold: float = typer.Option(0.95, help="Confidence threshold for early stopping (default: 0.95)."),
+    seed: int = typer.Option(42, help="Random seed."),
+    device: str = typer.Option("cuda", help="Device to use (cuda/cpu/mps)."),
+):
+    """
+    Measure attack accuracy by attacking multiple classes and evaluating with independent classifier.
+    """
+    from attack.evaluate import measure_attack_accuracy
+    
+    results = measure_attack_accuracy(
+        generator_path=generator_path,
+        target_classifier_path=target_classifier_path,
+        eval_classifier_path=eval_classifier_path,
+        num_labels=num_labels,
+        generator_dim=generator_dim,
+        z_dim=z_dim,
+        alpha=alpha,
+        max_episodes=max_episodes,
+        max_step=max_step,
+        w1=w1,
+        w2=w2,
+        w3=w3,
+        confidence_threshold=confidence_threshold,
+        seed=seed,
+        device=device,
+    )
+    
+    print(f"\n✅ Attack Accuracy Measurement Complete!")
+    print(f"Top-1 Accuracy: {results['top1_accuracy']:.2f}%")
+    print(f"Top-5 Accuracy: {results['top5_accuracy']:.2f}%")
+
 if __name__ == "__main__":
     app()

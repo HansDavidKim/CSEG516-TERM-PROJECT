@@ -11,3 +11,5 @@ tqdm
 kaggle
 kagglehub
 typer
+gymnasium
+stable-baselines3

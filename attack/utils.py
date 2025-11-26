@@ -3,11 +3,11 @@ import torch
 from generator.model import Generator
 from classifier.models import VGG16, ResNet152, FaceNet
 
-def load_generator(path: str, device: torch.device) -> Generator:
+def load_generator(path: str, device: torch.device, dim: int = 64) -> Generator:
     if not os.path.exists(path):
             raise FileNotFoundError(f"Generator path {path} does not exist")
     
-    generator = Generator(in_dim=100, dim=64).to(device)
+    generator = Generator(in_dim=100, dim=dim).to(device)
     checkpoint = torch.load(path, map_location=device)
     # generator/train.py saves dict with 'generator' key
     if isinstance(checkpoint, dict) and 'generator' in checkpoint:
@@ -25,8 +25,10 @@ def load_classifier(path: str, device: torch.device, model_name: str = 'VGG16'):
     checkpoint = torch.load(path, map_location=device)
     if isinstance(checkpoint, dict) and 'model' in checkpoint:
         state_dict = checkpoint['model']
+        arc_head_state = checkpoint.get('arc_head', None)
     else:
         state_dict = checkpoint
+        arc_head_state = None
         
     # Infer num_classes from the last layer weight
     if 'fc_layer.weight' in state_dict:
@@ -38,7 +40,9 @@ def load_classifier(path: str, device: torch.device, model_name: str = 'VGG16'):
 
     # Infer model_name from path if possible
     path_lower = path.lower()
-    if 'resnet' in path_lower:
+    if 'vgg' in path_lower:
+        model_name = 'VGG16'
+    elif 'resnet' in path_lower:
         model_name = 'ResNet152'
     elif 'facenet' in path_lower or 'face' in path_lower:
         model_name = 'FaceNet'
@@ -53,4 +57,15 @@ def load_classifier(path: str, device: torch.device, model_name: str = 'VGG16'):
     model = model.to(device)
     model.load_state_dict(state_dict)
     model.eval()
-    return model
+    
+    # Load ArcFace head if available (for better classifier)
+    arc_head = None
+    if arc_head_state is not None:
+        from classifier.train import ArcMarginProduct
+        # Infer embedding dimension from model
+        emb_dim = getattr(model, 'embedding_dim', 512)
+        arc_head = ArcMarginProduct(emb_dim, num_classes, s=64.0, m=0.5).to(device)
+        arc_head.load_state_dict(arc_head_state)
+        arc_head.eval()
+    
+    return model, arc_head
