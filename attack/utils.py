@@ -69,3 +69,22 @@ def load_classifier(path: str, device: torch.device, model_name: str = 'VGG16'):
         arc_head.eval()
     
     return model, arc_head
+
+def load_discriminator(path: str, device: torch.device, dim: int = 64):
+    """Load discriminator from generator checkpoint."""
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Generator checkpoint path {path} does not exist")
+    
+    from generator.train import Discriminator
+    
+    discriminator = Discriminator(dim=dim).to(device)
+    checkpoint = torch.load(path, map_location=device)
+    
+    # Load discriminator state from generator checkpoint
+    if isinstance(checkpoint, dict) and 'discriminator' in checkpoint:
+        discriminator.load_state_dict(checkpoint['discriminator'])
+    else:
+        raise ValueError("Discriminator state not found in checkpoint. Make sure you're using a generator checkpoint that includes discriminator.")
+    
+    discriminator.eval()
+    return discriminator

@@ -205,6 +205,7 @@ def train_attack(
     w1: float = typer.Option(2.0, help="Weight for state score (paper default: 2.0)."),
     w2: float = typer.Option(2.0, help="Weight for action score (paper default: 2.0)."),
     w3: float = typer.Option(8.0, help="Weight for distinction score (paper default: 8.0)."),
+
     confidence_threshold: float = typer.Option(0.95, help="Confidence threshold for early stopping (default: 0.95)."),
     seed: int = typer.Option(42, help="Random seed."),
     device: str = typer.Option("cuda", help="Device to use (cuda/cpu/mps)."),
@@ -232,7 +233,7 @@ def train_attack(
 def measure_accuracy(
     generator_path: str = typer.Option(..., help="Path to generator checkpoint."),
     target_classifier_path: str = typer.Option(..., help="Path to target classifier checkpoint."),
-    eval_classifier_path: str = typer.Option(..., help="Path to evaluation classifier checkpoint."),
+    eval_classifier_path: list[str] = typer.Option(..., help="Path(s) to evaluation classifier checkpoint(s). Can be specified multiple times for ensemble."),
     num_labels: int = typer.Option(10, help="Number of target classes to attack."),
     generator_dim: int = typer.Option(64, help="Generator latent dimension (64 or 128)."),
     max_episodes: int = typer.Option(10000, help="Episodes per target class (default: 10000 for speed)."),
@@ -242,19 +243,21 @@ def measure_accuracy(
     w1: float = typer.Option(2.0, help="Weight for state score (paper default: 2.0)."),
     w2: float = typer.Option(2.0, help="Weight for action score (paper default: 2.0)."),
     w3: float = typer.Option(8.0, help="Weight for distinction score (paper default: 8.0)."),
+
     confidence_threshold: float = typer.Option(0.95, help="Confidence threshold for early stopping (default: 0.95)."),
     seed: int = typer.Option(42, help="Random seed."),
     device: str = typer.Option("cuda", help="Device to use (cuda/cpu/mps)."),
 ):
     """
-    Measure attack accuracy by attacking multiple classes and evaluating with independent classifier.
+    Measure attack accuracy by attacking multiple classes and evaluating with independent classifier(s).
+    Supports ensemble evaluation when multiple eval classifier paths are provided.
     """
     from attack.evaluate import measure_attack_accuracy
     
     results = measure_attack_accuracy(
         generator_path=generator_path,
         target_classifier_path=target_classifier_path,
-        eval_classifier_path=eval_classifier_path,
+        eval_classifier_paths=eval_classifier_path if isinstance(eval_classifier_path, list) else [eval_classifier_path],
         num_labels=num_labels,
         generator_dim=generator_dim,
         z_dim=z_dim,

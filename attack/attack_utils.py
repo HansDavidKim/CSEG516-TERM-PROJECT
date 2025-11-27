@@ -3,15 +3,16 @@ import torch
 import torch.nn.functional as F
 
 
-def compute_reward(state_output, action_output, target_class, w1=2.0, w2=2.0, w3=8.0, epsilon=1e-7):
+def compute_reward(state_output, action_output, target_class, 
+                   w1=2.0, w2=2.0, w3=8.0, epsilon=1e-7):
     """
-    Compute reward exactly as in original RLB-MI code.
+    Compute reward based on classifier outputs only.
     
     Args:
         state_output: Classifier logits for state image (1, num_classes)
         action_output: Classifier logits for action image (1, num_classes)
         target_class: Target class index
-        w1, w2, w3: Reward weights
+        w1, w2, w3: Reward weights for classifier scores
         epsilon: Small constant for numerical stability
         
     Returns:
@@ -43,6 +44,8 @@ def compute_reward(state_output, action_output, target_class, w1=2.0, w2=2.0, w3
     reward = w1 * score1 + w2 * score2 + w3 * score3
     
     return reward
+
+
 
 
 def evaluate_confidence(classifier_output, target_class):

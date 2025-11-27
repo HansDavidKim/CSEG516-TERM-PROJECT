@@ -58,20 +58,21 @@ class Actor(nn.Module):
         std = log_std.exp()
         dist = Normal(0, 1)
         e = dist.sample().to(device=state.device)
-        action = torch.tanh(mu + e * std)
-        log_prob = (Normal(mu, std).log_prob(mu + e * std) - torch.log(1 - action.pow(2) + epsilon)).mean(1, keepdim=True)
+        action = 1.414 * torch.tanh(mu + e * std)  # Scale to [-1.414, 1.414] (√2)
+        log_prob = (Normal(mu, std).log_prob(mu + e * std) - torch.log(1 - (action/1.414).pow(2) + epsilon)).mean(1, keepdim=True)
         return action, log_prob
     
     def get_action(self, state):
         """
         Returns the action based on a squashed gaussian policy.
-        a(s,e) = tanh(mu(s) + sigma(s) * e)
+        a(s,e) = 1.414 * tanh(mu(s) + sigma(s) * e)
+        Range: [-1.414, 1.414] (√2)
         """
         mu, log_std = self.forward(state)
         std = log_std.exp()
         dist = Normal(0, 1)
         e = dist.sample().to(device=state.device)
-        action = torch.tanh(mu + e * std).cpu()
+        action = 1.414 * torch.tanh(mu + e * std).cpu()  # Scale to [-1.414, 1.414] (√2)
         return action[0]
 
 

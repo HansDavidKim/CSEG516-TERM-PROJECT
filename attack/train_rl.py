@@ -27,6 +27,7 @@ def train_attack(
     w1: float = 2.0,
     w2: float = 2.0,
     w3: float = 8.0,
+
     confidence_threshold: float = 0.95,
     seed: int = 42,
     device: str = "cuda",
@@ -58,6 +59,8 @@ def train_attack(
     print("Loading classifier...")
     classifier, arc_head = load_classifier(classifier_path, device_obj)
     classifier.eval()
+    
+
     
     # Initialize SAC agent
     print("Initializing agent...")
@@ -119,7 +122,7 @@ def train_attack(
                 _, state_output = classifier(state_image_norm)
                 _, action_output = classifier(action_image_norm)
             
-            # Calculate reward using original formula
+            # Calculate reward using classifier outputs
             reward = compute_reward(
                 state_output, action_output, target_class,
                 w1=w1, w2=w2, w3=w3, epsilon=1e-7
@@ -199,7 +202,7 @@ def train_attack(
 
 
 def save_top_k_images(top_images, output_dir, target_class, alpha):
-    """Save top-K images with confidence scores annotated."""
+    """Save top-K images without annotation (pure images only)."""
     if not top_images:
         return
     
@@ -209,42 +212,14 @@ def save_top_k_images(top_images, output_dir, target_class, alpha):
     image_dir = output_dir / "images"
     image_dir.mkdir(exist_ok=True)
     
-    # Convert PIL for annotation
-    to_pil = transforms.ToPILImage()
-    
     for rank, (score, episode, image_tensor) in enumerate(sorted_images, 1):
-        # Convert tensor to PIL image
+        # Save image directly without annotation
         img_tensor = (image_tensor[0] + 1) / 2  # [-1,1] -> [0,1]
         img_tensor = torch.clamp(img_tensor, 0, 1)
-        pil_img = to_pil(img_tensor.cpu())
         
-        # Create new image with padding at bottom for text
-        width, height = pil_img.size
-        new_height = height + 30
-        new_img = Image.new('RGB', (width, new_height), color='white')
-        new_img.paste(pil_img, (0, 0))
-        
-        # Add text
-        draw = ImageDraw.Draw(new_img)
-        text = f"Rank {rank} | Conf: {score:.4f} | Ep: {episode}"
-        
-        try:
-            # Try to use a nice font
-            font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 16)
-        except:
-            # Fallback to default font
-            font = ImageFont.load_default()
-        
-        # Center the text
-        bbox = draw.textbbox((0, 0), text, font=font)
-        text_width = bbox[2] - bbox[0]
-        text_x = (width - text_width) // 2
-        text_y = height + 5
-        
-        draw.text((text_x, text_y), text, fill='black', font=font)
-        
-        # Save image
+        # Save with metadata in filename only
         filename = f"rank{rank:02d}_cls{target_class}_ep{episode}_conf{score:.4f}.png"
-        new_img.save(image_dir / filename)
+        save_image(img_tensor, image_dir / filename)
+    
     
     print(f"Saved top {len(sorted_images)} images to {image_dir}")

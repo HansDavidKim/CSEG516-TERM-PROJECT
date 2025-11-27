@@ -13,7 +13,7 @@ from attack.attack_utils import evaluate_confidence
 def measure_attack_accuracy(
     generator_path: str,
     target_classifier_path: str,
-    eval_classifier_path: str,
+    eval_classifier_paths: list[str],  # Changed to list for ensemble
     num_labels: int,
     generator_dim: int = 64,
     z_dim: int = 100,
@@ -23,6 +23,7 @@ def measure_attack_accuracy(
     w1: float = 2.0,
     w2: float = 2.0,
     w3: float = 8.0,
+
     confidence_threshold: float = 0.95,
     seed: int = 42,
     device: str = "cuda",
@@ -66,9 +67,22 @@ def measure_attack_accuracy(
     target_classifier, target_arc_head = load_classifier(target_classifier_path, device_obj)
     target_classifier.eval()
     
-    print("Loading evaluation classifier...")
-    eval_classifier, eval_arc_head = load_classifier(eval_classifier_path, device_obj)
-    eval_classifier.eval()
+    print(f"Loading {len(eval_classifier_paths)} evaluation classifier(s) for ensemble...")
+    eval_classifiers = []
+    eval_arc_heads = []
+    for i, path in enumerate(eval_classifier_paths):
+        print(f"  [{i+1}/{len(eval_classifier_paths)}] Loading {path}...")
+        classifier, arc_head = load_classifier(path, device_obj)
+        classifier.eval()
+        eval_classifiers.append(classifier)
+        eval_arc_heads.append(arc_head)
+    
+    use_ensemble = len(eval_classifiers) > 1
+    if use_ensemble:
+        print(f"✓ Ensemble mode enabled with {len(eval_classifiers)} classifiers (equal weighting)")
+    else:
+        print(f"✓ Single classifier evaluation mode")
+
     
     # Normalization for classifier
     mean = torch.tensor([0.5177433, 0.4284404, 0.3802497], device=device_obj).view(1, 3, 1, 1)
@@ -78,8 +92,14 @@ def measure_attack_accuracy(
     all_classes = list(range(num_labels))
     
     # Results tracking
+    # Evaluation classifier metrics
     top1_correct = 0
     top5_correct = 0
+    
+    # Target classifier metrics
+    target_top1_correct = 0
+    target_top5_correct = 0
+    
     total = 0
     
     results = []
@@ -106,7 +126,7 @@ def measure_attack_accuracy(
         
         # Train attack for this target (simplified, fewer episodes for speed)
         print(f"Training attack for {max_episodes} episodes...")
-        pbar_episodes = tqdm(range(1, max_episodes + 1), desc=f"Class {target_class} Training", leave=False)
+        pbar_episodes = tqdm(range(1, max_episodes + 1), desc=f"Class {target_class}", leave=False)
         for i_episode in pbar_episodes:
             # Generate initial latent
             z = torch.randn(1, z_dim, device=device_obj)
@@ -143,7 +163,10 @@ def measure_attack_accuracy(
                 
                 # Calculate reward
                 from attack.attack_utils import compute_reward
-                reward = compute_reward(state_output, action_output, target_class, w1, w2, w3)
+                reward = compute_reward(
+                    state_output, action_output, target_class,
+                    w1=w1, w2=w2, w3=w3
+                )
                 
                 done = (t == max_step - 1)
                 agent.step(state, action, reward, next_state, done, t)
@@ -182,19 +205,28 @@ def measure_attack_accuracy(
                     attack_succeeded = True
                     break
             
-            # Early stopping check with evaluation classifier (every 100 episodes to save time)
+            # Early stopping check with evaluation classifier(s) (every 100 episodes to save time)
             if i_episode % 100 == 0:
                 eval_image_norm = (best_image + 1) / 2
                 eval_image_norm = (eval_image_norm - mean) / std
                 
-                if eval_arc_head is not None:
-                    eval_features, _ = eval_classifier(eval_image_norm)
-                    eval_output = eval_arc_head.inference_logits(eval_features)
-                else:
-                    _, eval_output = eval_classifier(eval_image_norm)
+                # Get probability outputs from all evaluation classifiers
+                ensemble_probs = None
+                for eval_classifier, eval_arc_head in zip(eval_classifiers, eval_arc_heads):
+                    if eval_arc_head is not None:
+                        eval_features, _ = eval_classifier(eval_image_norm)
+                        eval_output = eval_arc_head.inference_logits(eval_features)
+                    else:
+                        _, eval_output = eval_classifier(eval_image_norm)
+                    
+                    probs = F.softmax(eval_output, dim=-1)[0]
+                    
+                    if ensemble_probs is None:
+                        ensemble_probs = probs / len(eval_classifiers)
+                    else:
+                        ensemble_probs += probs / len(eval_classifiers)
                 
-                eval_probs = F.softmax(eval_output, dim=-1)[0]
-                top1_pred = torch.argmax(eval_probs).item()
+                top1_pred = torch.argmax(ensemble_probs).item()
                 
                 if top1_pred == target_class:
                     print(f"✅ Top-1 attack succeeded at episode {i_episode}! Moving to next class.")
@@ -205,94 +237,159 @@ def measure_attack_accuracy(
             if i_episode % 1000 == 0:
                 print(f"Episode {i_episode}/{max_episodes}, Best confidence: {best_score:.4f}")
         
-        # Evaluate with independent classifier (skip if already succeeded)
-        print(f"\nEvaluating generated image with evaluation classifier...")
+        # Evaluate with target classifier first
+        print(f"\nEvaluating with target classifier...")
+        with torch.no_grad():
+            target_eval_image_norm = (best_image + 1) / 2
+            target_eval_image_norm = (target_eval_image_norm - mean) / std
+            
+            if target_arc_head is not None:
+                target_features, _ = target_classifier(target_eval_image_norm)
+                target_eval_output = target_arc_head.inference_logits(target_features)
+            else:
+                _, target_eval_output = target_classifier(target_eval_image_norm)
+            
+            target_probs = F.softmax(target_eval_output, dim=-1)[0]
+            target_top1_pred = torch.argmax(target_probs).item()
+            target_top5_probs, target_top5_indices = torch.topk(target_probs, min(5, len(target_probs)))
+            target_top5_preds = target_top5_indices.tolist()
+            
+            is_target_top1_correct = (target_top1_pred == target_class)
+            is_target_top5_correct = (target_class in target_top5_preds)
+        
+        # Evaluate with independent classifier(s)
+        print(f"Evaluating with evaluation classifier(s)...")
         
         if attack_succeeded:
-            # Already verified during early stopping
+            # Already verified during early stopping - recompute for consistency
             eval_image_norm = (best_image + 1) / 2
             eval_image_norm = (eval_image_norm - mean) / std
             
-            if eval_arc_head is not None:
-                eval_features, _ = eval_classifier(eval_image_norm)
-                eval_output = eval_arc_head.inference_logits(eval_features)
-            else:
-                _, eval_output = eval_classifier(eval_image_norm)
-            
-            eval_probs = F.softmax(eval_output, dim=-1)[0]
-            top1_pred = torch.argmax(eval_probs).item()
-            top5_probs, top5_indices = torch.topk(eval_probs, min(5, len(eval_probs)))
-            top5_preds = top5_indices.tolist()
-            
-            is_top1_correct = True  # Already verified
-            is_top5_correct = True
-        else:
-            # Full evaluation
-            with torch.no_grad():
-                eval_image_norm = (best_image + 1) / 2
-                eval_image_norm = (eval_image_norm - mean) / std
-                
+            # Get probability outputs from all evaluation classifiers
+            ensemble_probs = None
+            for eval_classifier, eval_arc_head in zip(eval_classifiers, eval_arc_heads):
                 if eval_arc_head is not None:
                     eval_features, _ = eval_classifier(eval_image_norm)
                     eval_output = eval_arc_head.inference_logits(eval_features)
                 else:
                     _, eval_output = eval_classifier(eval_image_norm)
                 
-                eval_probs = F.softmax(eval_output, dim=-1)[0]
+                probs = F.softmax(eval_output, dim=-1)[0]
+                
+                if ensemble_probs is None:
+                    ensemble_probs = probs / len(eval_classifiers)
+                else:
+                    ensemble_probs += probs / len(eval_classifiers)
+            
+            top1_pred = torch.argmax(ensemble_probs).item()
+            top5_probs, top5_indices = torch.topk(ensemble_probs, min(5, len(ensemble_probs)))
+            top5_preds = top5_indices.tolist()
+            
+            # Re-verify with ensemble (early stopping was based on target classifier only)
+            is_top1_correct = (top1_pred == target_class)
+            is_top5_correct = (target_class in top5_preds)
+        else:
+            # Full evaluation with ensemble
+            with torch.no_grad():
+                eval_image_norm = (best_image + 1) / 2
+                eval_image_norm = (eval_image_norm - mean) / std
+                
+                # Get probability outputs from all evaluation classifiers
+                ensemble_probs = None
+                for eval_classifier, eval_arc_head in zip(eval_classifiers, eval_arc_heads):
+                    if eval_arc_head is not None:
+                        eval_features, _ = eval_classifier(eval_image_norm)
+                        eval_output = eval_arc_head.inference_logits(eval_features)
+                    else:
+                        _, eval_output = eval_classifier(eval_image_norm)
+                    
+                    probs = F.softmax(eval_output, dim=-1)[0]
+                    
+                    if ensemble_probs is None:
+                        ensemble_probs = probs / len(eval_classifiers)
+                    else:
+                        ensemble_probs += probs / len(eval_classifiers)
                 
                 # Top-1 prediction
-                top1_pred = torch.argmax(eval_probs).item()
+                top1_pred = torch.argmax(ensemble_probs).item()
                 
                 # Top-5 predictions
-                top5_probs, top5_indices = torch.topk(eval_probs, min(5, len(eval_probs)))
+                top5_probs, top5_indices = torch.topk(ensemble_probs, min(5, len(ensemble_probs)))
                 top5_preds = top5_indices.tolist()
                 
                 # Check correctness
                 is_top1_correct = (top1_pred == target_class)
                 is_top5_correct = (target_class in top5_preds)
-            
-            if is_top1_correct:
-                top1_correct += 1
-            if is_top5_correct:
-                top5_correct += 1
-            total += 1
-            
-            # Store result
-            result = {
-                'target_class': target_class,
-                'target_confidence': best_score,
-                'eval_top1_pred': top1_pred,
-                'eval_top1_prob': eval_probs[top1_pred].item(),
-                'eval_top5_preds': top5_preds,
-                'is_top1_correct': is_top1_correct,
-                'is_top5_correct': is_top5_correct,
-            }
-            results.append(result)
-            
-            print(f"\n--- Results for Target Class {target_class} ---")
-            print(f"Target Classifier Confidence: {best_score:.4f}")
-            print(f"Eval Top-1 Prediction: {top1_pred} (prob: {eval_probs[top1_pred]:.4f})")
-            print(f"Eval Top-5 Predictions: {top5_preds}")
-            print(f"Top-1 Correct: {is_top1_correct}")
-            print(f"Top-5 Correct: {is_top5_correct}")
-            print(f"\nCurrent Attack Accuracy:")
-            print(f"  Top-1: {top1_correct}/{total} = {100*top1_correct/total:.2f}%")
-            print(f"  Top-5: {top5_correct}/{total} = {100*top5_correct/total:.2f}%")
+        
+        # Update counters for all attacks (both succeeded and failed)
+        # Evaluation classifier
+        if is_top1_correct:
+            top1_correct += 1
+        if is_top5_correct:
+            top5_correct += 1
+        
+        # Target classifier
+        if is_target_top1_correct:
+            target_top1_correct += 1
+        if is_target_top5_correct:
+            target_top5_correct += 1
+        
+        total += 1
+        
+        # Store result
+        result = {
+            'target_class': target_class,
+            'target_confidence': best_score,
+            'target_top1_pred': target_top1_pred,
+            'target_top1_prob': target_probs[target_top1_pred].item(),
+            'target_top5_preds': target_top5_preds,
+            'is_target_top1_correct': is_target_top1_correct,
+            'is_target_top5_correct': is_target_top5_correct,
+            'eval_top1_pred': top1_pred,
+            'eval_top1_prob': ensemble_probs[top1_pred].item(),
+            'eval_top5_preds': top5_preds,
+            'is_eval_top1_correct': is_top1_correct,
+            'is_eval_top5_correct': is_top5_correct,
+        }
+        results.append(result)
+        
+        print(f"\n--- Results for Target Class {target_class} ---")
+        print(f"\n[Target Classifier]")
+        print(f"  Confidence: {best_score:.4f}")
+        print(f"  Top-1: {target_top1_pred} (prob: {target_probs[target_top1_pred]:.4f}) - Correct: {is_target_top1_correct}")
+        print(f"  Top-5: {target_top5_preds} - Correct: {is_target_top5_correct}")
+        print(f"\n[Evaluation Ensemble]")
+        print(f"  Top-1: {top1_pred} (prob: {ensemble_probs[top1_pred]:.4f}) - Correct: {is_top1_correct}")
+        print(f"  Top-5: {top5_preds} - Correct: {is_top5_correct}")
+        print(f"\n[Current Attack Success Rate]")
+        print(f"  Target Classifier - Top-1: {target_top1_correct}/{total} = {100*target_top1_correct/total:.2f}%, Top-5: {target_top5_correct}/{total} = {100*target_top5_correct/total:.2f}%")
+        print(f"  Eval Ensemble     - Top-1: {top1_correct}/{total} = {100*top1_correct/total:.2f}%, Top-5: {top5_correct}/{total} = {100*top5_correct/total:.2f}%")
     
     # Final results
-    top1_accuracy = 100 * top1_correct / total
-    top5_accuracy = 100 * top5_correct / total
+    target_top1_accuracy = 100 * target_top1_correct / total
+    target_top5_accuracy = 100 * target_top5_correct / total
+    eval_top1_accuracy = 100 * top1_correct / total
+    eval_top5_accuracy = 100 * top5_correct / total
     
     print(f"\n{'='*60}")
-    print(f"FINAL Attack Accuracy Results")
+    print("FINAL Attack Accuracy Results")
     print(f"{'='*60}")
     print(f"Total Classes Attacked: {total}")
-    print(f"Top-1 Accuracy: {top1_correct}/{total} = {top1_accuracy:.2f}%")
-    print(f"Top-5 Accuracy: {top5_correct}/{total} = {top5_accuracy:.2f}%")
+    print(f"\n[Target Classifier (VGG16)]")
+    print(f"  Top-1 Success: {target_top1_correct}/{total} = {target_top1_accuracy:.2f}%")
+    print(f"  Top-5 Success: {target_top5_correct}/{total} = {target_top5_accuracy:.2f}%")
+    print(f"\n[Evaluation Ensemble (ResNet152 + FaceNet)]")
+    print(f"  Top-1 Success: {top1_correct}/{total} = {eval_top1_accuracy:.2f}%")
+    print(f"  Top-5 Success: {top5_correct}/{total} = {eval_top5_accuracy:.2f}%")
     print(f"{'='*60}")
     
+    print(f"\n✅ Attack Measurement Complete!")
+    print(f"Target Classifier Success: {target_top1_accuracy:.2f}% (Top-1), {target_top5_accuracy:.2f}% (Top-5)")
+    print(f"Transferability: {eval_top1_accuracy:.2f}% (Top-1), {eval_top5_accuracy:.2f}% (Top-5)")
     return {
-        'top1_accuracy': top1_accuracy,
-        'top5_accuracy': top5_accuracy,
+        'target_top1_accuracy': target_top1_accuracy,
+        'target_top5_accuracy': target_top5_accuracy,
+        'eval_top1_accuracy': eval_top1_accuracy,
+        'eval_top5_accuracy': eval_top5_accuracy,
         'results': results
     }
