@@ -1,4 +1,6 @@
 import os
+import csv
+import time
 import random
 import torch
 import torch.nn.functional as F
@@ -386,10 +388,49 @@ def measure_attack_accuracy(
     print(f"\n✅ Attack Measurement Complete!")
     print(f"Target Classifier Success: {target_top1_accuracy:.2f}% (Top-1), {target_top5_accuracy:.2f}% (Top-5)")
     print(f"Transferability: {eval_top1_accuracy:.2f}% (Top-1), {eval_top5_accuracy:.2f}% (Top-5)")
+    
+    # Save results to CSV
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    report_dir = Path("metric_report")
+    report_dir.mkdir(exist_ok=True)
+    report_path = report_dir / f"attack_results_{timestamp}.csv"
+    
+    print(f"\nSaving detailed results to {report_path}...")
+    
+    with open(report_path, mode='w', newline='') as f:
+        writer = csv.writer(f)
+        # Header
+        writer.writerow([
+            "Target Class", 
+            "Target Confidence", 
+            "Target Top-1 Pred", "Target Top-1 Prob", "Target Top-1 Correct",
+            "Target Top-5 Preds", "Target Top-5 Correct",
+            "Eval Top-1 Pred", "Eval Top-1 Prob", "Eval Top-1 Correct",
+            "Eval Top-5 Preds", "Eval Top-5 Correct",
+            "Generator Path", "Target Classifier Path", "Eval Classifier Paths"
+        ])
+        
+        # Rows
+        for res in results:
+            writer.writerow([
+                res['target_class'],
+                f"{res['target_confidence']:.4f}",
+                res['target_top1_pred'], f"{res['target_top1_prob']:.4f}", res['is_target_top1_correct'],
+                res['target_top5_preds'], res['is_target_top1_correct'],
+                res['eval_top1_pred'], f"{res['eval_top1_prob']:.4f}", res['is_eval_top1_correct'],
+                res['eval_top5_preds'], res['is_eval_top5_correct'],
+                generator_path,
+                target_classifier_path,
+                ";".join(eval_classifier_paths)
+            ])
+            
+    print(f"Report saved successfully!")
+
     return {
         'target_top1_accuracy': target_top1_accuracy,
         'target_top5_accuracy': target_top5_accuracy,
         'eval_top1_accuracy': eval_top1_accuracy,
         'eval_top5_accuracy': eval_top5_accuracy,
-        'results': results
+        'results': results,
+        'report_path': str(report_path)
     }
