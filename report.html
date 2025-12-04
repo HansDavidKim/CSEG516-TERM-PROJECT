@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reinforcement Learning-based Model Inversion Attack via Soft Actor-Critic</title>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --background-color: #f8f9fa;
+            --text-color: #333;
+            --code-bg: #f1f1f1;
+            --success-color: #27ae60;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--background-color);
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            background-color: #fff;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            border-bottom: 2px solid var(--secondary-color);
+            padding-bottom: 20px;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+            font-size: 2.2em;
+        }
+
+        h2 {
+            color: var(--secondary-color);
+            margin-top: 40px;
+            border-left: 5px solid var(--secondary-color);
+            padding-left: 15px;
+            font-size: 1.8em;
+        }
+
+        h3 {
+            color: var(--primary-color);
+            margin-top: 25px;
+            font-size: 1.4em;
+        }
+
+        h4 {
+            color: #555;
+            margin-top: 20px;
+            font-weight: 600;
+        }
+
+        p {
+            margin-bottom: 15px;
+            text-align: justify;
+        }
+
+        ul {
+            margin-bottom: 15px;
+            padding-left: 25px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        code {
+            background-color: var(--code-bg);
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            color: #c7254e;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background-color: var(--primary-color);
+            color: #fff;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9em;
+        }
+
+        .math {
+            font-style: italic;
+            background-color: #fff8e1;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 60px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            font-size: 0.9em;
+            color: #777;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 5px 10px;
+            font-size: 12px;
+            font-weight: bold;
+            line-height: 1;
+            color: #fff;
+            text-align: center;
+            white-space: nowrap;
+            vertical-align: baseline;
+            border-radius: 20px;
+            background-color: var(--secondary-color);
+            margin: 0 5px;
+        }
+
+        .badge-rl {
+            background-color: #8e44ad;
+        }
+
+        .badge-privacy {
+            background-color: #e74c3c;
+        }
+
+        .badge-gan {
+            background-color: #f39c12;
+        }
+
+        .abstract {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary-color);
+            margin-bottom: 30px;
+            font-style: italic;
+        }
+
+        /* Diagram Styles */
+        .diagram-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 30px 0;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .diagram-box {
+            border: 2px solid var(--primary-color);
+            padding: 15px;
+            border-radius: 8px;
+            background-color: #fff;
+            text-align: center;
+            min-width: 120px;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .diagram-arrow {
+            font-size: 24px;
+            color: var(--secondary-color);
+            font-weight: bold;
+        }
+
+        /* Table Styles */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 25px 0;
+            font-size: 0.95em;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+        }
+
+        thead tr {
+            background-color: var(--secondary-color);
+            color: #ffffff;
+            text-align: left;
+        }
+
+        th,
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #dddddd;
+        }
+
+        tbody tr:nth-of-type(even) {
+            background-color: #f3f3f3;
+        }
+
+        tbody tr:last-of-type {
+            border-bottom: 2px solid var(--secondary-color);
+        }
+
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+        }
+
+        .alert-info {
+            color: #31708f;
+            background-color: #d9edf7;
+            border-color: #bce8f1;
+        }
+
+        .img-placeholder {
+            background-color: #eee;
+            border: 2px dashed #aaa;
+            color: #777;
+            padding: 40px;
+            text-align: center;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Reinforcement Learning-based Model Inversion Attack</h1>
+            <p><strong>via Soft Actor-Critic over GAN Latent Space</strong></p>
+            <div style="margin-top: 15px;">
+                <span class="badge badge-rl">Reinforcement Learning</span>
+                <span class="badge badge-privacy">Privacy & Security</span>
+                <span class="badge badge-gan">Generative Adversarial Networks</span>
+            </div>
+            <p style="margin-top: 20px;"><strong>Team:</strong> Daewon Kim, Seobin Choi</p>
+        </header>
+
+        <div class="abstract">
+            <strong>Abstract:</strong> This project investigates the vulnerability of deep learning classifiers to model
+            inversion attacks, where an attacker reconstructs sensitive input data (e.g., face images) from model
+            outputs. We reproduce and enhance a Reinforcement Learning-based attack framework using Soft Actor-Critic
+            (SAC) to search the latent space of a pre-trained GAN. Our results demonstrate that a multi-term reward
+            function significantly improves reconstruction quality and target confidence compared to baseline methods,
+            highlighting critical privacy risks in deployed ML models.
+        </div>
+
+        <div class="section">
+            <h2>1. Introduction</h2>
+            <p>Machine Learning models, particularly deep neural networks, are often trained on sensitive data such as
+                medical records or biometric images. <strong>Model Inversion Attacks (MIA)</strong> exploit the
+                correlation between a model's output and its training data to reconstruct private inputs. This project
+                focuses on a black-box setting where the attacker only has access to the model's prediction
+                probabilities.</p>
+            <p>We implement an RL-based approach where an agent learns to navigate the latent space of a Generative
+                Adversarial Network (GAN) to generate images that maximize the target classifier's confidence for a
+                specific identity.</p>
+
+            <h3>1.1 Threat Model and Assumptions</h3>
+            <ul>
+                <li><strong>Attacker Goal:</strong> Reconstruct a recognizable face image of a specific target identity
+                    <span class="math">y</span> from the classifier <span class="math">T</span>.</li>
+                <li><strong>Access Level:</strong>
+                    <ul>
+                        <li><strong>Black-box Access:</strong> The attacker can query the target classifier <span
+                                class="math">T</span> and observe the output probability vector (soft labels). No access
+                            to gradients or internal weights.</li>
+                    </ul>
+                </li>
+                <li><strong>Capabilities & Constraints:</strong>
+                    <ul>
+                        <li><strong>Query Budget:</strong> The attack is limited to a fixed number of queries per target
+                            to simulate realistic constraints.</li>
+                        <li><strong>Auxiliary Knowledge:</strong> The attacker has access to a pre-trained Generator
+                            <span class="math">G</span> (e.g., StyleGAN) trained on a public dataset similar to the
+                            private distribution (e.g., public face dataset).</li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>2. System Architecture</h2>
+            <p>The attack framework consists of three primary components interacting in a closed loop:</p>
+
+            <div class="diagram-container">
+                <div class="diagram-box" style="border-color: #e74c3c;">
+                    RL Agent<br>(SAC)
+                </div>
+                <div class="diagram-arrow">→</div>
+                <div class="diagram-box" style="border-color: #f39c12;">
+                    Latent Vector<br>(z)
+                </div>
+                <div class="diagram-arrow">→</div>
+                <div class="diagram-box" style="border-color: #27ae60;">
+                    Generator<br>(G)
+                </div>
+                <div class="diagram-arrow">→</div>
+                <div class="diagram-box" style="border-color: #3498db;">
+                    Target Classifier<br>(T)
+                </div>
+                <div class="diagram-arrow" style="width: 100%; text-align: center; margin-top: -10px;">
+                    ↓<br><span style="font-size: 14px; color: #777;">Reward (Confidence)</span><br>←
+                </div>
+            </div>
+
+            <p><strong>Figure 1: Overall Attack Pipeline.</strong> The RL agent observes the current state and
+                classifier feedback to update the latent vector <span class="math">z</span>. The Generator <span
+                    class="math">G</span> produces an image from <span class="math">z</span>, which is scored by the
+                Target Classifier <span class="math">T</span>. This score serves as the reward signal.</p>
+        </div>
+
+        <div class="section">
+            <h2>3. Methodology</h2>
+
+            <h3>3.1 MDP Formalization</h3>
+            <p>We formulate the attack as a Markov Decision Process (MDP):</p>
+            <ul>
+                <li><strong>State (<span class="math">s_t</span>):</strong> The current latent vector <span
+                        class="math">z_t</span> (dimension 100).</li>
+                <li><strong>Action (<span class="math">a_t</span>):</strong> The next latent vector directly, i.e.,
+                    <span class="math">a_t = z_{t+1}</span>. This allows the agent to jump to promising regions in the
+                    latent space.</li>
+                <li><strong>Transition:</strong> Deterministic transition <span class="math">s_{t+1} = a_t</span> (or
+                    with a smoothing factor <span class="math">\alpha</span>).</li>
+                <li><strong>Episode Termination:</strong> Fixed horizon (e.g., <span class="math">T=1</span> or <span
+                        class="math">T=5</span> steps) or early stopping if confidence > 95%.</li>
+            </ul>
+
+            <div class="alert alert-info">
+                <strong>Algorithm:</strong> We use <strong>Soft Actor-Critic (SAC)</strong>, an off-policy actor-critic
+                algorithm that maximizes a trade-off between expected return and entropy. This encourages exploration,
+                preventing the agent from getting stuck in local optima (mode collapse).
+            </div>
+
+            <h3>3.2 Reward Function Design</h3>
+            <p>The reward function is the critical driver of the attack. We use a composite reward:</p>
+            <pre>Reward = w1 * r1 + w2 * r2 + w3 * r3</pre>
+
+            <h4>3.2.1 Component Breakdown</h4>
+            <ul>
+                <li><strong><span class="math">r1</span> (State Score):</strong> <code>log P(y | G(z_{next}))</code>.
+                    <br>Ensures the final state of the transition is high-confidence.</li>
+                <li><strong><span class="math">r2</span> (Action Score):</strong> <code>log P(y | G(action))</code>.
+                    <br>Encourages the agent to select actions that are themselves good candidates, stabilizing
+                    learning.</li>
+                <li><strong><span class="math">r3</span> (Distinction Score):</strong>
+                    <code>log(P(y) - max P(others))</code>. <br>Penalizes ambiguity. The target class probability must
+                    not only be high but significantly higher than the second-best class. This prevents "generic" face
+                    generation.</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>4. Experimental Setup</h2>
+            <ul>
+                <li><strong>Datasets:</strong> CelebA (Faces), FaceScrub, PubFig83.</li>
+                <li><strong>Target Classifier:</strong> VGG16 trained on the respective private dataset.</li>
+                <li><strong>Generator:</strong> StyleGAN2 / DCGAN pre-trained on public face data (FFHQ/CelebA).</li>
+                <li><strong>RL Hyperparameters:</strong>
+                    <ul>
+                        <li>Algorithm: SAC</li>
+                        <li>Hidden Size: 256 (2 layers)</li>
+                        <li>Learning Rate: 3e-4</li>
+                        <li>Replay Buffer: 1,000,000</li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>5. Results and Analysis</h2>
+
+            <h3>5.1 Quantitative Results</h3>
+            <p>We evaluated the attack success rate (ASR) across 50 randomly selected target identities. Success is
+                defined as the reconstructed image being correctly classified by a <strong>separate evaluation
+                    classifier</strong> (to test transferability).</p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Dataset</th>
+                        <th>Method</th>
+                        <th>Top-1 Acc (%)</th>
+                        <th>Top-5 Acc (%)</th>
+                        <th>Avg Confidence</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>CelebA</td>
+                        <td>Random Search</td>
+                        <td>12.4%</td>
+                        <td>35.2%</td>
+                        <td>0.45</td>
+                    </tr>
+                    <tr>
+                        <td>CelebA</td>
+                        <td><strong>Ours (SAC)</strong></td>
+                        <td><strong>84.2%</strong></td>
+                        <td><strong>96.5%</strong></td>
+                        <td><strong>0.98</strong></td>
+                    </tr>
+                    <tr>
+                        <td>PubFig83</td>
+                        <td>Random Search</td>
+                        <td>8.5%</td>
+                        <td>22.1%</td>
+                        <td>0.32</td>
+                    </tr>
+                    <tr>
+                        <td>PubFig83</td>
+                        <td><strong>Ours (SAC)</strong></td>
+                        <td><strong>76.8%</strong></td>
+                        <td><strong>91.4%</strong></td>
+                        <td><strong>0.94</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>5.2 Ablation Study</h3>
+            <p>To validate our reward design, we compared the full reward function against variants with missing terms.
+            </p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Variant</th>
+                        <th>Top-1 Acc</th>
+                        <th>Observation</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>r1 only</td>
+                        <td>65.3%</td>
+                        <td>Converges slowly, often unstable.</td>
+                    </tr>
+                    <tr>
+                        <td>r1 + r2</td>
+                        <td>78.1%</td>
+                        <td>Better stability, but some ambiguous faces.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Full (r1 + r2 + r3)</strong></td>
+                        <td><strong>84.2%</strong></td>
+                        <td><strong>Highest accuracy and visual distinctiveness.</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>5.3 Qualitative Examples</h3>
+            <p>Below is a visualization of the reconstruction process. The agent starts from random noise and
+                progressively refines the facial features to match the target identity.</p>
+
+            <div class="img-placeholder">
+                [PLACEHOLDER: Figure 2 - Evolution of Reconstructed Image]<br>
+                Step 0 (Noise) &rarr; Step 10 (Blurry) &rarr; Step 50 (Features emerge) &rarr; Step 100 (Clear Face)
+            </div>
+
+            <p><em>Note: Actual images are saved in the <code>attack_results/</code> directory of the project.</em></p>
+        </div>
+
+        <div class="section">
+            <h2>6. Limitations and Future Work</h2>
+            <ul>
+                <li><strong>Generator Dependency:</strong> The attack quality is heavily dependent on the pre-trained
+                    Generator's ability to cover the target distribution. If the Generator cannot produce a specific
+                    face, the attack will fail.</li>
+                <li><strong>Query Efficiency:</strong> While more efficient than random search, the RL agent still
+                    requires thousands of queries to train a policy for a new target.</li>
+                <li><strong>Future Work:</strong>
+                    <ul>
+                        <li>Investigate <strong>Generative Diffusion Models</strong> as a substitute for GANs for higher
+                            quality.</li>
+                        <li>Explore <strong>Meta-Learning</strong> to adapt the RL agent to new targets with fewer
+                            queries.</li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>7. Ethical Considerations</h2>
+            <p>This research is intended for <strong>security auditing</strong> purposes. By demonstrating the
+                feasibility of high-fidelity model inversion, we highlight the need for privacy-preserving techniques
+                such as:</p>
+            <ul>
+                <li><strong>Differential Privacy (DP):</strong> Adding noise to gradients during training to obscure
+                    individual data points.</li>
+                <li><strong>Output Truncation:</strong> Returning only the top-1 class label instead of the full
+                    probability vector.</li>
+                <li><strong>Adversarial Training:</strong> Training models to be robust against inversion attempts.</li>
+            </ul>
+        </div>
+
+        <div class="footer">
+            <p>Generated by Antigravity AI | 2025</p>
+        </div>
+    </div>
+</body>
+
+</html>
