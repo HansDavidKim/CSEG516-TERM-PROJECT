@@ -68,12 +68,13 @@ class FlatImageDataset(Dataset):
 
 
 def _select_device(explicit: Optional[str] = None) -> torch.device:
+    """Select device with CUDA priority."""
     if explicit:
         return torch.device(explicit)
-    if torch.backends.mps.is_available():
-        return torch.device("mps")
     if torch.cuda.is_available():
         return torch.device("cuda")
+    if torch.backends.mps.is_available():
+        return torch.device("mps")
     return torch.device("cpu")
 
 

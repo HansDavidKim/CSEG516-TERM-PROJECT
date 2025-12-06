@@ -38,11 +38,11 @@ def measure_attack_accuracy(
     2. Evaluate generated images with independent evaluation classifier
     3. Calculate Top-1 and Top-5 accuracy
     """
-    # Setup device
-    if device == "mps" and torch.backends.mps.is_available():
-        device_obj = torch.device("mps")
-    elif device == "cuda" and torch.cuda.is_available():
+    # Setup device (CUDA priority)
+    if device == "cuda" and torch.cuda.is_available():
         device_obj = torch.device("cuda")
+    elif device == "mps" and torch.backends.mps.is_available():
+        device_obj = torch.device("mps")
     else:
         device_obj = torch.device("cpu")
     

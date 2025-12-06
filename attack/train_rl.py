@@ -41,11 +41,11 @@ def train_attack(
     output_dir = Path(f"attack_results/{run_name}")
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    # Setup device
-    if device == "mps" and torch.backends.mps.is_available():
-        device_obj = torch.device("mps")
-    elif device == "cuda" and torch.cuda.is_available():
+    # Setup device (CUDA priority)
+    if device == "cuda" and torch.cuda.is_available():
         device_obj = torch.device("cuda")
+    elif device == "mps" and torch.backends.mps.is_available():
+        device_obj = torch.device("mps")
     else:
         device_obj = torch.device("cpu")
     

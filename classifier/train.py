@@ -141,11 +141,12 @@ def create_model(model_name: str, num_classes: int, weight_path: str | None) -> 
     raise ValueError(f"Unsupported model_name '{model_name}'.")
 
 
-def resolve_device(prefer_mps: bool = True) -> torch.device:
-    if prefer_mps and torch.backends.mps.is_available():
-        return torch.device("mps")
+def resolve_device() -> torch.device:
+    """Resolve device with CUDA priority."""
     if torch.cuda.is_available():
         return torch.device("cuda")
+    if torch.backends.mps.is_available():
+        return torch.device("mps")
     return torch.device("cpu")
 
 

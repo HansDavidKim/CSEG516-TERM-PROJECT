@@ -151,10 +151,14 @@ class InceptionV3FeatureExtractor(nn.Module):
             self.inception = inception_v3(weights=Inception_V3_Weights.IMAGENET1K_V1)
             self.inception.eval()
             
-            # Force CPU for InceptionV3 to avoid MPS segmentation fault
-            self.device = torch.device('cpu')
+            # Use CUDA if available, otherwise CPU (MPS causes segfault with InceptionV3)
+            if torch.cuda.is_available():
+                self.device = torch.device('cuda')
+                print(f"  (InceptionV3 using CUDA)")
+            else:
+                self.device = torch.device('cpu')
+                print(f"  (InceptionV3 using CPU for stability)")
             self.inception.to(self.device)
-            print(f"  (InceptionV3 using CPU for stability)")
             
             # Remove the final fc layer to get 2048-dim features
             self.inception.fc = nn.Identity()
@@ -392,11 +396,11 @@ def measure_all_metrics(
     2. KNN Distance: Average distance to K nearest neighbors in private training set
     3. FID: Fréchet Inception Distance - perceptual quality of generated images
     """
-    # Setup device
-    if device == "mps" and torch.backends.mps.is_available():
-        device_obj = torch.device("mps")
-    elif device == "cuda" and torch.cuda.is_available():
+    # Setup device (CUDA priority)
+    if device == "cuda" and torch.cuda.is_available():
         device_obj = torch.device("cuda")
+    elif device == "mps" and torch.backends.mps.is_available():
+        device_obj = torch.device("mps")
     else:
         device_obj = torch.device("cpu")
     
