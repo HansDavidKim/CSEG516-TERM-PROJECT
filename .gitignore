@@ -13,3 +13,4 @@ dataset/
 paper.pdf
 attack_results/
 runs/
+*.csv

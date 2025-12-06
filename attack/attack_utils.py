@@ -59,7 +59,7 @@ def evaluate_confidence(classifier_output, target_class):
     Returns:
         confidence: Confidence score (probability) for target class
     """
-    y = torch.tensor([target_class], device=classifier_output.device)
     probs = F.softmax(classifier_output, dim=-1)
-    confidence = float(torch.mean(torch.diag(torch.index_select(probs.data, 1, y))))
+    # Simply extract the probability for the target class
+    confidence = float(probs[0, target_class].item())
     return confidence
