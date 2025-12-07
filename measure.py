@@ -11,6 +11,8 @@ Usage:
 """
 
 import os
+# Fix OpenMP library conflict on Mac
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 import csv
 import time
 import argparse
