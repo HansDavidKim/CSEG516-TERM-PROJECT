@@ -390,12 +390,14 @@ def train(
                 resolved_path = candidate.resolve()
                 break
         if resolved_path is None:
-            raise FileNotFoundError(
-                f"Pretrained weights were requested but not found for model '{model_name}'. "
-                f"Searched: {[str(p) for p in candidate_paths]}"
+            print(
+                f"[WARN] Pretrained weights not found for model '{model_name}'. "
+                f"Searched: {[str(p) for p in candidate_paths]}. Training from scratch."
             )
-        weight_path = str(resolved_path)
-        print(f"Loading pretrained weights from {weight_path}")
+            weight_path = None
+        else:
+            weight_path = str(resolved_path)
+            print(f"Loading pretrained weights from {weight_path}")
     else:
         weight_path = None
 

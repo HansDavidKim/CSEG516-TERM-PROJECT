@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reproduction of RLB-MI: Reinforcement Learning-based Model Inversion Attack</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --background-color: #f8f9fa;
+            --text-color: #333;
+            --code-bg: #f1f1f1;
+            --success-color: #27ae60;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--background-color);
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            background-color: #fff;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            border-bottom: 2px solid var(--secondary-color);
+            padding-bottom: 20px;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+            font-size: 2.0em;
+        }
+
+        h2 {
+            color: var(--secondary-color);
+            margin-top: 40px;
+            border-left: 5px solid var(--secondary-color);
+            padding-left: 15px;
+            font-size: 1.6em;
+        }
+
+        h3 {
+            color: var(--primary-color);
+            margin-top: 25px;
+            font-size: 1.3em;
+        }
+
+        h4 {
+            color: #555;
+            margin-top: 20px;
+            font-weight: 600;
+        }
+
+        p {
+            margin-bottom: 15px;
+            text-align: justify;
+        }
+
+        ul {
+            margin-bottom: 15px;
+            padding-left: 25px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        code {
+            background-color: var(--code-bg);
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            color: #c7254e;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background-color: var(--primary-color);
+            color: #fff;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9em;
+        }
+
+        .math {
+            font-style: italic;
+            background-color: #fff8e1;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 60px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            font-size: 0.9em;
+            color: #777;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 5px 10px;
+            font-size: 12px;
+            font-weight: bold;
+            line-height: 1;
+            color: #fff;
+            text-align: center;
+            white-space: nowrap;
+            vertical-align: baseline;
+            border-radius: 20px;
+            background-color: var(--secondary-color);
+            margin: 0 5px;
+        }
+
+        .badge-rl {
+            background-color: #8e44ad;
+        }
+
+        .badge-privacy {
+            background-color: #e74c3c;
+        }
+
+        .badge-gan {
+            background-color: #f39c12;
+        }
+
+        .badge-reproduction {
+            background-color: #27ae60;
+        }
+
+        .abstract {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary-color);
+            margin-bottom: 30px;
+            font-style: italic;
+        }
+
+        .diagram-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 30px 0;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .diagram-box {
+            border: 2px solid var(--primary-color);
+            padding: 15px;
+            border-radius: 8px;
+            background-color: #fff;
+            text-align: center;
+            min-width: 120px;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .diagram-arrow {
+            font-size: 24px;
+            color: var(--secondary-color);
+            font-weight: bold;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 25px 0;
+            font-size: 0.95em;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+        }
+
+        thead tr {
+            background-color: var(--secondary-color);
+            color: #ffffff;
+            text-align: left;
+        }
+
+        th,
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #dddddd;
+        }
+
+        tbody tr:nth-of-type(even) {
+            background-color: #f3f3f3;
+        }
+
+        tbody tr:last-of-type {
+            border-bottom: 2px solid var(--secondary-color);
+        }
+
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+        }
+
+        .alert-info {
+            color: #31708f;
+            background-color: #d9edf7;
+            border-color: #bce8f1;
+        }
+
+        .alert-warning {
+            color: #8a6d3b;
+            background-color: #fcf8e3;
+            border-color: #faebcc;
+        }
+
+        .metric-box {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .metric-title {
+            font-weight: bold;
+            color: var(--secondary-color);
+            margin-bottom: 10px;
+        }
+
+        /* Print styles for continuous PDF */
+        @media print {
+            body {
+                background-color: #fff;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+                font-size: 10pt;
+            }
+
+            h1 {
+                font-size: 18pt;
+            }
+
+            h2 {
+                font-size: 14pt;
+            }
+
+            h3 {
+                font-size: 12pt;
+            }
+
+            h4 {
+                font-size: 11pt;
+            }
+
+            p,
+            li,
+            td,
+            th {
+                font-size: 9pt;
+            }
+
+            code,
+            pre {
+                font-size: 8pt;
+            }
+
+            .container {
+                box-shadow: none;
+                max-width: 100%;
+                padding: 10px;
+            }
+
+            .section {
+                page-break-inside: avoid;
+            }
+
+            table {
+                page-break-inside: avoid;
+            }
+
+            tr {
+                page-break-inside: avoid;
+            }
+
+            h2,
+            h3,
+            h4 {
+                page-break-after: avoid;
+            }
+
+            .metric-box {
+                page-break-inside: avoid;
+            }
+
+            .alert {
+                page-break-inside: avoid;
+            }
+
+            .diagram-container {
+                page-break-inside: avoid;
+            }
+
+            img {
+                page-break-inside: avoid;
+            }
+        }
+
+        @page {
+            margin: 2cm 1.5cm;
+            /* top/bottom: 2cm, left/right: 1.5cm to avoid header/footer overlap */
+            size: A4;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Reproduction of RLB-MI: Reinforcement Learning-based Black-Box Model Inversion Attack</h1>
+            <p><strong>CSEG516 Reinforcement Learning Term Project</strong></p>
+            <div style="margin-top: 15px;">
+                <span class="badge badge-reproduction">Reproduction Study</span>
+                <span class="badge badge-rl">Reinforcement Learning</span>
+                <span class="badge badge-privacy">Privacy Attack</span>
+                <span class="badge badge-gan">GAN + ArcFace</span>
+            </div>
+            <p style="margin-top: 20px;"><strong>Team:</strong> Daewon Kim, Seobin Choi</p>
+            <p><strong>Sogang University, Fall 2025</strong></p>
+        </header>
+
+        <div class="abstract">
+            <strong>Abstract:</strong> This project reproduces the RLB-MI (Reinforcement Learning-based Black-Box Model
+            Inversion)
+            attack framework from CVPR 2023. We implement Soft Actor-Critic (SAC) to search the latent space of a
+            pre-trained GAN,
+            targeting ArcFace-based face classifiers trained on CelebA and FaceScrub datasets. Additionally, we
+            investigate the
+            effect of <strong>inference-time logit temperature scaling</strong> (varying the ArcFace scale factor s) on
+            attack
+            performance, demonstrating that calibrated confidence scores lead to more informative reward signals for the
+            RL agent.
+        </div>
+
+        <div style="text-align: center; margin: 20px 0;">
+            <img src="diagram.png" alt="RLB-MI Attack Framework"
+                style="max-width: 100%; height: auto; border-radius: 8px;">
+            <p style="font-size: 0.9em; color: #777; margin-top: 10px;"><em>Figure: Overview of the RLB-MI attack
+                    framework.</em></p>
+        </div>
+
+        <div class="section">
+            <h2>1. Introduction</h2>
+            <p><strong>Model Inversion Attacks (MIA)</strong> exploit the correlation between a model's output and its
+                training
+                data to reconstruct private inputs. This project focuses on reproducing the RLB-MI attack, which
+                formulates the
+                model inversion problem as a reinforcement learning task in a black-box setting.</p>
+
+            <div class="alert alert-info">
+                <strong>Original Paper:</strong> "Reinforcement Learning-Based Black-Box Model Inversion Attacks" (Han
+                et al., CVPR 2023)
+            </div>
+
+            <h3>1.1 Threat Model</h3>
+            <ul>
+                <li><strong>Attacker Goal:</strong> Reconstruct a recognizable face image of a target identity \( y \)
+                    from the classifier.</li>
+                <li><strong>Access Level:</strong> Black-box access to the target classifier (query-based, only observes
+                    output probability vector).</li>
+                <li><strong>Auxiliary Knowledge:</strong> Pre-trained Generator \( G \) trained on
+                    the same dataset (CelebA or FaceScrub) but with non-overlapping identities.</li>
+            </ul>
+
+            <h3>1.2 Our Contributions</h3>
+            <ul>
+                <li><strong>Faithful Reproduction:</strong> Implementation of RLB-MI with SAC agent on CelebA and
+                    FaceScrub datasets.</li>
+                <li><strong>ArcFace Integration:</strong> Use of ArcFace loss for training robust face classifiers with
+                    angular margin.</li>
+                <li><strong>Temperature Scaling Analysis:</strong> Investigation of inference-time scale factor (s=16 vs
+                    s=64) effect on attack performance.</li>
+            </ul>
+
+            <h3>1.3 Attack Examples</h3>
+            <p>Below are examples of successful model inversion attacks. The top row shows real private training images
+                (target identities), and the bottom row shows images reconstructed by our RL agent using only classifier
+                queries.</p>
+
+            <div style="text-align: center; margin: 20px 0;">
+                <p><strong>Target (Private Training Data)</strong></p>
+                <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+                    <img src="examples/target_1.png" alt="Target 1"
+                        style="width: 80px; height: 80px; border: 2px solid #3498db; border-radius: 5px;">
+                    <img src="examples/target_2.png" alt="Target 2"
+                        style="width: 80px; height: 80px; border: 2px solid #3498db; border-radius: 5px;">
+                    <img src="examples/target_3.png" alt="Target 3"
+                        style="width: 80px; height: 80px; border: 2px solid #3498db; border-radius: 5px;">
+                    <img src="examples/target_4.png" alt="Target 4"
+                        style="width: 80px; height: 80px; border: 2px solid #3498db; border-radius: 5px;">
+                    <img src="examples/target_5.png" alt="Target 5"
+                        style="width: 80px; height: 80px; border: 2px solid #3498db; border-radius: 5px;">
+                </div>
+                <p style="margin-top: 15px;"><strong>Recovered (Generated by Attack)</strong></p>
+                <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+                    <img src="examples/recovery_1.png" alt="Recovery 1"
+                        style="width: 80px; height: 80px; border: 2px solid #e74c3c; border-radius: 5px;">
+                    <img src="examples/recovery_2.png" alt="Recovery 2"
+                        style="width: 80px; height: 80px; border: 2px solid #e74c3c; border-radius: 5px;">
+                    <img src="examples/recovery_3.png" alt="Recovery 3"
+                        style="width: 80px; height: 80px; border: 2px solid #e74c3c; border-radius: 5px;">
+                    <img src="examples/recovery_4.png" alt="Recovery 4"
+                        style="width: 80px; height: 80px; border: 2px solid #e74c3c; border-radius: 5px;">
+                    <img src="examples/recovery_5.png" alt="Recovery 5"
+                        style="width: 80px; height: 80px; border: 2px solid #e74c3c; border-radius: 5px;">
+                </div>
+                <p style="font-size: 0.9em; color: #777; margin-top: 10px;"><em>Figure 1: Model inversion attack
+                        results. Blue border = real private data, Red border = reconstructed images.</em></p>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>2. System Architecture</h2>
+
+            <div class="diagram-container">
+                <div class="diagram-box" style="border-color: #e74c3c;">
+                    SAC Agent<br>(Actor-Critic)
+                </div>
+                <div class="diagram-arrow">→</div>
+                <div class="diagram-box" style="border-color: #f39c12;">
+                    Latent Vector<br>(\( z \in \mathbb{R}^{100} \))
+                </div>
+                <div class="diagram-arrow">→</div>
+                <div class="diagram-box" style="border-color: #27ae60;">
+                    Generator<br>(WGAN-GP)
+                </div>
+                <div class="diagram-arrow">→</div>
+                <div class="diagram-box" style="border-color: #3498db;">
+                    Target Classifier<br>(ArcFace)
+                </div>
+            </div>
+
+            <p style="text-align: center;"><em>Figure 1: Attack Pipeline. The SAC agent explores the GAN latent space to
+                    find \( z \) vectors that produce images maximizing target class confidence.</em></p>
+
+            <h3>2.1 ArcFace Classifier</h3>
+            <p>We train face classifiers using <strong>ArcFace (Additive Angular Margin Loss)</strong>, which enhances
+                discriminative power by adding an angular margin \( m \) to the target class during training:</p>
+            <p>$$ L = -\log \frac{e^{s(\cos(\theta_y + m))}}{e^{s(\cos(\theta_y + m))} + \sum_{j \neq y}
+                e^{s\cos\theta_j}} $$</p>
+            <ul>
+                <li><strong>s (scale factor):</strong> Controls the magnitude of logits (default: 64.0 during training)
+                </li>
+                <li><strong>m (angular margin):</strong> Adds penalty to target class angle (default: 0.5 radians \(
+                    \approx \) 28.6°)</li>
+            </ul>
+
+            <div class="alert alert-warning">
+                <strong>Key Insight:</strong> During inference, ArcFace with \( s=64 \) produces extremely sharp
+                probability
+                distributions (confidence > 99%), making the reward signal sparse. We investigate using \( s=16 \)
+                during
+                attack to achieve more calibrated probabilities.
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>3. Methodology</h2>
+
+            <h3>3.1 MDP Formalization</h3>
+            <ul>
+                <li><strong>State (\( s_t \)):</strong> Current latent vector \( z_t \in \mathbb{R}^{100} \)</li>
+                <li><strong>Action (\( a_t \)):</strong> Next latent vector (direct jump in latent space)</li>
+                <li><strong>Transition:</strong> \( z_{t+1} = \alpha z_t + (1-\alpha) a_t \), where \( \alpha \) is a
+                    momentum factor</li>
+                <li><strong>Early Stopping:</strong> When target classifier confidence \( \ge 80\% \) for target class
+                </li>
+            </ul>
+
+            <h3>3.2 Reward Function</h3>
+            <p>The reward function combines three components to guide the agent:</p>
+            <p>$$ R = w_1 r_1 + w_2 r_2 + w_3 r_3 \quad (w_1=2, w_2=2, w_3=8) $$</p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Component</th>
+                        <th>Formula</th>
+                        <th>Purpose</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>r₁ (State Score)</strong></td>
+                        <td>$$ \log P(y \mid G(z_{t+1})) $$</td>
+                        <td>Maximize target confidence of resulting state</td>
+                    </tr>
+                    <tr>
+                        <td><strong>r₂ (Action Score)</strong></td>
+                        <td>$$ \log P(y \mid G(a_t)) $$</td>
+                        <td>Encourage selecting high-confidence actions</td>
+                    </tr>
+                    <tr>
+                        <td><strong>r₃ (Distinction Score)</strong></td>
+                        <td>$$ \log(P(y) - \max P(\text{others})) $$</td>
+                        <td>Ensure target class dominates other classes</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h2>4. Evaluation Metrics</h2>
+            <p>Following the RLB-MI paper, we evaluate attacks using three complementary metrics:</p>
+
+            <div class="metric-box">
+                <div class="metric-title">1. Attack Accuracy (Top-1 / Top-5)</div>
+                <p><strong>Definition:</strong> Percentage of generated images correctly classified as the target
+                    identity by an <em>independent evaluation classifier</em> (different from the target classifier).
+                </p>
+                <ul>
+                    <li><strong>Top-1:</strong> Target class is the highest prediction</li>
+                    <li><strong>Top-5:</strong> Target class is among the top 5 predictions</li>
+                </ul>
+                <p><strong>Interpretation:</strong> Higher is better. Measures attack success and transferability across
+                    classifiers.</p>
+            </div>
+
+            <div class="metric-box">
+                <div class="metric-title">2. KNN Distance (Feature Space)</div>
+                <p><strong>Definition:</strong> Average L2 distance from each generated image to its K-nearest neighbors
+                    in the private training set, measured in the feature space of the evaluation classifier.</p>
+                <p>$$ \text{KNN}_\text{dist} = \frac{1}{N} \sum \frac{1}{K} \sum \|f(\text{gen}_i) -
+                    f(\text{private}_j)\|_2
+                    $$</p>
+                <p><strong>Interpretation:</strong> Lower is better. Indicates how similar generated images are to
+                    actual private training data.</p>
+            </div>
+
+            <div class="metric-box">
+                <div class="metric-title">3. FID (Fréchet Inception Distance)</div>
+                <p><strong>Definition:</strong> Measures the distance between the distribution of generated images and
+                    private images using InceptionV3 features.</p>
+                <p>$$ \text{FID} = \|\mu_{\text{gen}} - \mu_{\text{priv}}\|^2 + \text{Tr}(\Sigma_{\text{gen}} +
+                    \Sigma_{\text{priv}} - 2(\Sigma_{\text{gen}}\Sigma_{\text{priv}})^{0.5}) $$</p>
+                <p><strong>Interpretation:</strong> Lower is better. Measures perceptual quality and realism of
+                    generated faces.</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>5. Experimental Setup</h2>
+
+            <h3>5.1 Environment</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Component</th>
+                        <th>Specification</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Framework</td>
+                        <td>PyTorch 2.x</td>
+                    </tr>
+                    <tr>
+                        <td>GPU</td>
+                        <td>NVIDIA A100 (Google Colab Pro+)</td>
+                    </tr>
+                    <tr>
+                        <td>Python</td>
+                        <td>3.10+</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>5.2 Datasets</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Dataset</th>
+                        <th>Identities</th>
+                        <th>Images</th>
+                        <th>Purpose</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>CelebA</strong></td>
+                        <td>1,000</td>
+                        <td>~30 per identity</td>
+                        <td>Private training data</td>
+                    </tr>
+                    <tr>
+                        <td><strong>FaceScrub</strong></td>
+                        <td>530</td>
+                        <td>~100 per identity</td>
+                        <td>Private training data</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p>Each dataset is split into <strong>private</strong> (for classifier training) and <strong>public</strong>
+                (for GAN training) with non-overlapping identities. This simulates a realistic attack scenario where the
+                attacker has access to similar but disjoint data.</p>
+
+            <h3>5.3 Data Preprocessing</h3>
+            <ul>
+                <li><strong>Face Detection & Alignment:</strong> MTCNN-based face detection and 5-point landmark
+                    alignment</li>
+                <li><strong>Resolution:</strong> All images resized to 64×64 pixels</li>
+                <li><strong>Normalization (Classifier):</strong> Mean=[0.5177, 0.4284, 0.3803], Std=[0.3042, 0.2845,
+                    0.2827]</li>
+                <li><strong>Normalization (Generator):</strong> Output range [-1, 1], converted to [0, 1] before
+                    classifier input</li>
+                <li><strong>Data Augmentation:</strong> Random horizontal flip (p=0.5) during classifier training</li>
+            </ul>
+
+            <h3>5.4 Model Configuration</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Component</th>
+                        <th>Architecture</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Target Classifier</td>
+                        <td>VGG16 / ResNet152 + ArcFace</td>
+                        <td>\( s=64, m=0.5 \), embedding_dim=512</td>
+                    </tr>
+                    <tr>
+                        <td>Eval Classifier</td>
+                        <td>FaceNet + ArcFace</td>
+                        <td>Independent evaluation network</td>
+                    </tr>
+                    <tr>
+                        <td>Generator</td>
+                        <td>WGAN-GP (DCGAN-style)</td>
+                        <td>\( z_{\text{dim}}=100 \), output=64×64×3, trained on same dataset</td>
+                    </tr>
+                    <tr>
+                        <td>RL Agent</td>
+                        <td>SAC (Soft Actor-Critic)</td>
+                        <td>Hidden=256×2, LR=3e-4</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>5.5 Attack Settings</h3>
+            <ul>
+                <li><strong>Target Classes:</strong> Top-50 most frequent identities per dataset</li>
+                <li><strong>Episodes per Class:</strong> 5,000</li>
+                <li><strong>Early Stopping:</strong> Target confidence \( \ge 80\% \)</li>
+                <li><strong>Momentum (\( \alpha \)):</strong> 0.0 (direct action becomes next state)</li>
+                <li><strong>Random Seed:</strong> Fixed seed for reproducibility. Seed variation experiments were not
+                    conducted due to time constraints (~4 hours per dataset/model/50 labels).</li>
+            </ul>
+
+            <h3>5.6 Classifier Accuracy</h3>
+            <p>The following tables show the classification accuracy of our trained target classifiers on their
+                respective test sets:</p>
+
+            <h4>VGG16 + ArcFace</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Dataset</th>
+                        <th>Top-1</th>
+                        <th>Top-3</th>
+                        <th>Top-5</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>CelebA</td>
+                        <td>76.76%</td>
+                        <td>84.92%</td>
+                        <td>87.28%</td>
+                    </tr>
+                    <tr>
+                        <td>FaceScrub</td>
+                        <td>94.74%</td>
+                        <td>97.37%</td>
+                        <td>98.17%</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h4>ResNet-152 + ArcFace</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Dataset</th>
+                        <th>Top-1</th>
+                        <th>Top-3</th>
+                        <th>Top-5</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>CelebA</td>
+                        <td>62.62%</td>
+                        <td>72.67%</td>
+                        <td>75.63%</td>
+                    </tr>
+                    <tr>
+                        <td>FaceScrub</td>
+                        <td>92.00%</td>
+                        <td>95.49%</td>
+                        <td>96.34%</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h4>Face.evoLVe (Evaluation Classifier)</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Dataset</th>
+                        <th>Top-1</th>
+                        <th>Top-3</th>
+                        <th>Top-5</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>CelebA</td>
+                        <td>65.98%</td>
+                        <td>74.63%</td>
+                        <td>77.40%</td>
+                    </tr>
+                    <tr>
+                        <td>FaceScrub</td>
+                        <td>90.86%</td>
+                        <td>94.63%</td>
+                        <td>95.94%</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p><em>Note: The evaluation classifier is independent from the target classifier and is used to measure
+                    attack transferability.</em></p>
+        </div>
+
+        <div class="section">
+            <h2>6. Results</h2>
+
+            <h3>6.1 Inference-Time Temperature Scaling</h3>
+            <p>We investigate the effect of ArcFace scale factor during attack inference:</p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Scale (s)</th>
+                        <th>Probability Distribution</th>
+                        <th>Reward Signal</th>
+                        <th>Expected Effect</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>s=64 (original)</td>
+                        <td>Very sharp (>99%)</td>
+                        <td>Sparse, binary-like</td>
+                        <td>Fast convergence but local optima</td>
+                    </tr>
+                    <tr>
+                        <td>s=16 (ours)</td>
+                        <td>Calibrated (~70-90%)</td>
+                        <td>Informative, smooth</td>
+                        <td>Better exploration, higher quality</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>6.2 Main Results</h3>
+            <p>We evaluate all combinations of datasets (CelebA, FaceScrub), target models (VGG16, ResNet152), and
+                scale factors (s=64, s=16). <strong>Inference-time logit scaling (s=16) consistently improves attack
+                    performance</strong>
+                across most configurations. Notably, using s=16 improved Top-1 accuracy by up to +18%p (FaceScrub +
+                ResNet152)
+                and reduced FID scores by up to 20 points, indicating better quality reconstructions.</p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Dataset</th>
+                        <th>Target Model</th>
+                        <th>Scale</th>
+                        <th>Top-1 Acc (%)</th>
+                        <th>Top-5 Acc (%)</th>
+                        <th>KNN Dist</th>
+                        <th>FID</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>CelebA</td>
+                        <td>VGG16</td>
+                        <td>s=64</td>
+                        <td>16.00</td>
+                        <td>32.00</td>
+                        <td>1.2377</td>
+                        <td>99.70</td>
+                    </tr>
+                    <tr>
+                        <td>CelebA</td>
+                        <td>VGG16</td>
+                        <td>s=16</td>
+                        <td><strong>22.00</strong></td>
+                        <td><strong>52.00</strong></td>
+                        <td><strong>1.1629</strong></td>
+                        <td><strong>79.82</strong></td>
+                    </tr>
+                    <tr>
+                        <td>CelebA</td>
+                        <td>ResNet152</td>
+                        <td>s=64</td>
+                        <td><strong>18.00</strong></td>
+                        <td>26.00</td>
+                        <td>1.2164</td>
+                        <td><strong>76.99</strong></td>
+                    </tr>
+                    <tr>
+                        <td>CelebA</td>
+                        <td>ResNet152</td>
+                        <td>s=16</td>
+                        <td>16.00</td>
+                        <td><strong>30.00</strong></td>
+                        <td><strong>1.1965</strong></td>
+                        <td>78.83</td>
+                    </tr>
+                    <tr>
+                        <td>FaceScrub</td>
+                        <td>VGG16</td>
+                        <td>s=64</td>
+                        <td>22.00</td>
+                        <td>34.00</td>
+                        <td>1.1837</td>
+                        <td>91.57</td>
+                    </tr>
+                    <tr>
+                        <td>FaceScrub</td>
+                        <td>VGG16</td>
+                        <td>s=16</td>
+                        <td><strong>34.00</strong></td>
+                        <td><strong>50.00</strong></td>
+                        <td><strong>1.1017</strong></td>
+                        <td><strong>76.37</strong></td>
+                    </tr>
+                    <tr>
+                        <td>FaceScrub</td>
+                        <td>ResNet152</td>
+                        <td>s=64</td>
+                        <td>8.00</td>
+                        <td>34.00</td>
+                        <td>1.2291</td>
+                        <td>76.88</td>
+                    </tr>
+                    <tr>
+                        <td>FaceScrub</td>
+                        <td>ResNet152</td>
+                        <td>s=16</td>
+                        <td><strong>26.00</strong></td>
+                        <td><strong>44.00</strong></td>
+                        <td><strong>1.1488</strong></td>
+                        <td><strong>67.93</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h2>7. Discussion</h2>
+
+            <h3>7.1 Temperature Scaling as Reward Shaping</h3>
+            <p>Reducing the ArcFace scale factor from s=64 to s=16 during inference acts as <strong>implicit reward
+                    shaping</strong>.
+                With s=64, the softmax output is extremely peaked, meaning small changes in the latent space produce
+                negligible reward differences.
+                With s=16, the probability distribution is smoother, providing more informative gradient signals to the
+                RL agent.</p>
+
+            <h3>7.2 Anomaly Cases: When the Attack "Succeeds" but Fails</h3>
+            <p>We observed interesting cases where generated images successfully fool the target classifier with high
+                confidence, yet <strong>the images themselves are severely distorted or corrupted</strong>—not even
+                resembling a proper human face. Below are examples of such anomalies:</p>
+
+            <div style="text-align: center; margin: 20px 0;">
+                <div style="display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
+                    <img src="examples/anomaly_1.png" alt="Anomaly 1"
+                        style="width: 80px; height: 80px; border: 2px solid #e74c3c; border-radius: 5px;">
+                    <img src="examples/anomaly_2.png" alt="Anomaly 2"
+                        style="width: 80px; height: 80px; border: 2px solid #e74c3c; border-radius: 5px;">
+                    <img src="examples/anomaly_3.png" alt="Anomaly 3"
+                        style="width: 80px; height: 80px; border: 2px solid #e74c3c; border-radius: 5px;">
+                </div>
+                <p style="font-size: 0.9em; color: #777; margin-top: 10px;"><em>Figure: Anomaly cases where
+                        corrupted/blurred images still achieve high target classifier confidence.</em></p>
+            </div>
+
+            <p><strong>Analysis:</strong> This phenomenon can be attributed to two factors:</p>
+            <ul>
+                <li><strong>GAN Latent Manifold Limitation:</strong> Due to mode collapse, the GAN's latent space
+                    lacks vectors that map to proper face images for certain target identities. The RL agent
+                    navigates to regions where the generator produces corrupted outputs.</li>
+                <li><strong>Classifier Over-confidence in OOD Regions:</strong> When the agent explores latent
+                    regions that generate out-of-distribution (OOD) images, the classifier exhibits spurious
+                    high confidence due to lack of calibration in these unfamiliar regions. The agent essentially
+                    finds "adversarial" latent vectors that exploit the classifier's decision boundaries without
+                    producing meaningful images.</li>
+            </ul>
+
+            <h3>7.3 Limitations</h3>
+            <ul>
+                <li><strong>Generator Capacity:</strong> Attack quality depends on the GAN's ability to generate
+                    diverse, realistic faces.</li>
+                <li><strong>Query Efficiency:</strong> Thousands of queries are needed per target identity.</li>
+                <li><strong>Resolution:</strong> Current implementation uses 64×64 images; higher resolution would
+                    require more compute.</li>
+            </ul>
+
+            <h3>7.4 Future Work</h3>
+            <ul>
+                <li><strong>Reward Shaping Exploration:</strong> Comparing various reward shaping techniques beyond
+                    temperature scaling (e.g., potential-based shaping, curriculum learning) could yield further
+                    performance improvements.</li>
+                <li><strong>Alternative RL Algorithms:</strong> Due to the label-wise attack nature requiring
+                    separate training per target identity, we could only evaluate SAC. Comparing with other
+                    continuous control algorithms such as DDPG and TD3 would be valuable future work, though
+                    computationally expensive.</li>
+                <li><strong>Modern Generative Models:</strong> Since GANs are prone to mode collapse, exploring
+                    latent diffusion models (e.g., Stable Diffusion with VAE latent space) could improve
+                    reconstruction diversity and quality.</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>8. Member's Role</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Member</th>
+                        <th>Contributions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Daewon Kim</strong></td>
+                        <td>
+                            <ul style="margin: 0; padding-left: 20px;">
+                                <li>Project topic selection and problem formulation</li>
+                                <li>GAN (WGAN-GP) training and implementation</li>
+                                <li>Environment setup and data preprocessing</li>
+                                <li>Classifier training with ArcFace loss integration</li>
+                            </ul>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Seobin Choi</strong></td>
+                        <td>
+                            <ul style="margin: 0; padding-left: 20px;">
+                                <li>SAC agent training and hyperparameter tuning</li>
+                                <li>Logit temperature scaling proposal and experiments</li>
+                                <li>Report writing and documentation</li>
+                            </ul>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h2>9. Conclusion</h2>
+            <p>We successfully reproduced the RLB-MI attack framework, demonstrating that reinforcement learning can
+                effectively
+                exploit black-box classifiers to reconstruct private training data. Our investigation of inference-time
+                temperature
+                scaling reveals that <strong>calibrating the classifier's confidence scores</strong> can significantly
+                impact attack
+                performance by providing more informative reward signals to the RL agent.</p>
+        </div>
+
+        <div class="section">
+            <h2>References</h2>
+            <ol>
+                <li>Han et al., "Reinforcement Learning-Based Black-Box Model Inversion Attacks", CVPR 2023</li>
+                <li>Deng et al., "ArcFace: Additive Angular Margin Loss for Deep Face Recognition", CVPR 2019</li>
+                <li>Haarnoja et al., "Soft Actor-Critic: Off-Policy Maximum Entropy Deep RL", ICML 2018</li>
+            </ol>
+        </div>
+
+        <div class="footer">
+            <p>CSEG516 Reinforcement Learning | Sogang University | Fall 2025</p>
+        </div>
+    </div>
+</body>
+
+</html>

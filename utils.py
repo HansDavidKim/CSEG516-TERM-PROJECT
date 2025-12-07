@@ -189,4 +189,4 @@ def configure_logging() -> None:
 
 if __name__ == '__main__':
     login_kaggle()
-    load_kaggle_dataset("annasvoboda/pubfig83")
+    load_kaggle_dataset("jessicali9530/celeba-dataset")

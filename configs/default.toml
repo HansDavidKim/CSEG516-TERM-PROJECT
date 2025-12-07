@@ -16,12 +16,12 @@ seed = 42
 hugging_face = ['flwrlabs/celeba']
 hugging_identity = [1000]
 
-kaggle_hub = ['rajnishe/facescrub-full', 'annasvoboda/pubfig83']
-kaggle_identity = [200, 50]
+kaggle_hub = ['rajnishe/facescrub-full']
+kaggle_identity = [200]
 
 ### We can add other dataset later, but for now, we don't.
 dist_shift_hugging = []
 dist_shift_hugging_identity = []
 
-dist_shift_kaggle = ['arnaud58/flickrfaceshq-dataset-ffhq']
-dist_shift_kaggle_identity = [30000]
+dist_shift_kaggle = []
+dist_shift_kaggle_identity = []

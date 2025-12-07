@@ -46,7 +46,6 @@ def train_classifier(
     dataset_alias = {
         'celeba': 'dataset/private/celeba',
         'facescrub-full': 'dataset/private/facescrub-full',
-        'pubfig83': 'dataset/private/pubfig83',
     }
 
     dataset_key = data_set.lower()
@@ -54,7 +53,6 @@ def train_classifier(
     checkpoint_suffix_map = {
         'celeba': 'celeba',
         'facescrub-full': 'facescrub',
-        'pubfig83': 'pubfig83',
     }
     checkpoint_suffix = checkpoint_suffix_map.get(dataset_key)
 
@@ -104,7 +102,7 @@ def train_classifier(
 @app.command()
 def train_generator(
     data_root: str = typer.Option(
-        "dataset/public/flickrfaceshq-dataset-ffhq",
+        "dataset/public/celeba",
         "--data-root",
         help="Root directory containing image data. If it has splits, --split will select one.",
     ),

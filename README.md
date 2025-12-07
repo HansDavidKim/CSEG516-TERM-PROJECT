@@ -44,6 +44,25 @@ CSEG516-TERM-PROJECT/
 
 ---
 
+## Model Weights
+
+Model weights are available for download:
+
+📥 **[Download Pre-trained Weights (Google Drive)](https://drive.google.com/drive/folders/1Wq3PZPF-B_aSCC-Y9LAo0ADwqBB-bcrs?usp=share_link)**
+
+After downloading, place the files in the `checkpoints/` directory:
+```
+checkpoints/
+├── generator_celeba.pt           # GAN trained on CelebA
+├── generator_facescrub_full.pt   # GAN trained on FaceScrub
+├── vgg16_celeba_best.pt          # VGG16 + ArcFace classifier
+├── resnet152_celeba_best.pt      # ResNet152 + ArcFace classifier
+├── facenet_celeba_best.pt        # FaceNet evaluation network
+└── ...
+```
+
+---
+
 ## Setup
 
 ### Requirements
@@ -68,33 +87,67 @@ dataset/private/celeba/
 
 ## Usage
 
-### 1. Train Classifier (ArcFace)
+The full pipeline consists of 5 steps. Use `python main.py <command> --help` for detailed options.
+
+### 1. Load & Preprocess Datasets
+Downloads and preprocesses CelebA and FaceScrub datasets from Kaggle/HuggingFace.
 ```bash
-python -m classifier.train --data-root dataset/private/celeba --model VGG16
+python main.py load-data
+```
+This creates `dataset/private/` and `dataset/public/` directories with processed images.
+
+### 2. Train Classifier (Target Model)
+Train the target classifier with ArcFace loss.
+```bash
+# VGG16 on CelebA
+python main.py train-classifier --data-set celeba --model-name VGG16 --epoch 100
+
+# ResNet152 on FaceScrub
+python main.py train-classifier --data-set facescrub-full --model-name ResNet152 --epoch 100
+
+# FaceNet (evaluation network)
+python main.py train-classifier --data-set celeba --model-name FaceNet --epoch 100
+```
+Checkpoints saved to `checkpoints/{model}_{dataset}_best.pt`.
+
+### 3. Train Generator (GAN)
+Train WGAN-GP generator on public face data.
+```bash
+# CelebA public split
+python main.py train-generator --data-root dataset/public/celeba --epochs 100 --base-dim 128
+
+# FaceScrub public split
+python main.py train-generator --data-root dataset/public/facescrub-full --epochs 200 --base-dim 128
+```
+Checkpoints saved to `checkpoints/generator_{dataset}.pt`.
+
+### 4. Run RL Attack (Single Target)
+Train SAC agent to attack a specific target class.
+```bash
+python main.py train-attack \
+    --generator-path checkpoints/generator_celeba.pt \
+    --classifier-path checkpoints/vgg16_celeba_best.pt \
+    --target-class 0 \
+    --max-episodes 5000 \
+    --generator-dim 128 \
+    --device cuda
 ```
 
-### 2. Train Generator (GAN)
+### 5. Full Evaluation (measure.py)
+Evaluate attack performance with comprehensive metrics.
 ```bash
-python -m generator.train --data-root dataset/public/flickrfaceshq
-```
-
-### 3. Run Attack Evaluation
-```bash
-# CelebA dataset
-./run_celeba_eval.sh
-
-# FaceScrub dataset
-./run_facescrub_eval.sh
-
-# Or directly with Python
 python measure.py \
-    --generator-path checkpoints/generator.pth \
+    --generator-path checkpoints/generator_celeba.pt \
     --target-classifier checkpoints/vgg16_celeba_best.pt \
     --eval-classifier checkpoints/facenet_celeba_best.pt \
     --private-data dataset/private/celeba \
     --num-labels 50 \
-    --arcface-scale 16.0
+    --max-episodes 5000 \
+    --generator-dim 128 \
+    --arcface-scale 16.0 \
+    --device cuda
 ```
+Results saved to `metric_report/` directory.
 
 ---
 
@@ -130,23 +183,23 @@ python measure.py \
 - Compares InceptionV3 feature distributions between generated and private images
 - **Lower is better** → realistic, high-quality reconstructions
 
-### Example Output
+### Example Output (CelebA, VGG16 + ArcFace, scale=16)
 ```
 ================================================================================
 FINAL EVALUATION RESULTS (RLB-MI Metrics)
 ================================================================================
 Total Classes Attacked: 50
 
-[1] Attack Accuracy (Evaluation Classifier)
-    Top-1 Success: 40/50 = 80.00%
-    Top-5 Success: 45/50 = 90.00%
+[1] Attack Accuracy (Evaluation Classifier - FaceNet)
+    Top-1 Success: 11/50 = 22.00%
+    Top-5 Success: 26/50 = 52.00%
 
 [2] KNN Distance (k=5)
-    Average Distance: 0.3245
+    Average Distance: 1.1629
     (Lower is better)
 
 [3] FID (Fréchet Inception Distance)
-    FID Score: 45.23
+    FID Score: 79.82
     (Lower is better)
 ================================================================================
 ```
