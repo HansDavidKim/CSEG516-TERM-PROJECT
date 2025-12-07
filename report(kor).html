@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RLB-MI 재생산: 강화학습 기반 모델 인버전 공격</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --background-color: #f8f9fa;
+            --text-color: #333;
+            --code-bg: #f1f1f1;
+            --success-color: #27ae60;
+        }
+
+        body {
+            font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--background-color);
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            background-color: #fff;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            border-bottom: 2px solid var(--secondary-color);
+            padding-bottom: 20px;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+            font-size: 2.0em;
+        }
+
+        h2 {
+            color: var(--secondary-color);
+            margin-top: 40px;
+            border-left: 5px solid var(--secondary-color);
+            padding-left: 15px;
+            font-size: 1.6em;
+        }
+
+        h3 {
+            color: var(--primary-color);
+            margin-top: 25px;
+            font-size: 1.3em;
+        }
+
+        h4 {
+            color: #555;
+            margin-top: 20px;
+            font-weight: 600;
+        }
+
+        p {
+            margin-bottom: 15px;
+            text-align: justify;
+        }
+
+        ul {
+            margin-bottom: 15px;
+            padding-left: 25px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        code {
+            background-color: var(--code-bg);
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            color: #c7254e;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background-color: var(--primary-color);
+            color: #fff;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9em;
+        }
+
+        .math {
+            font-style: italic;
+            background-color: #fff8e1;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 60px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            font-size: 0.9em;
+            color: #777;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 5px 10px;
+            font-size: 12px;
+            font-weight: bold;
+            line-height: 1;
+            color: #fff;
+            text-align: center;
+            white-space: nowrap;
+            vertical-align: baseline;
+            border-radius: 20px;
+            background-color: var(--secondary-color);
+            margin: 0 5px;
+        }
+
+        .badge-rl {
+            background-color: #8e44ad;
+        }
+
+        .badge-privacy {
+            background-color: #e74c3c;
+        }
+
+        .badge-gan {
+            background-color: #f39c12;
+        }
+
+        .badge-reproduction {
+            background-color: #27ae60;
+        }
+
+        .abstract {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary-color);
+            margin-bottom: 30px;
+            font-style: italic;
+        }
+
+        .diagram-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 30px 0;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .diagram-box {
+            border: 2px solid var(--primary-color);
+            padding: 15px;
+            border-radius: 8px;
+            background-color: #fff;
+            text-align: center;
+            min-width: 120px;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .diagram-arrow {
+            font-size: 24px;
+            color: var(--secondary-color);
+            font-weight: bold;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 25px 0;
+            font-size: 0.95em;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+        }
+
+        thead tr {
+            background-color: var(--secondary-color);
+            color: #ffffff;
+            text-align: left;
+        }
+
+        th,
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #dddddd;
+        }
+
+        tbody tr:nth-of-type(even) {
+            background-color: #f3f3f3;
+        }
+
+        tbody tr:last-of-type {
+            border-bottom: 2px solid var(--secondary-color);
+        }
+
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+        }
+
+        .alert-info {
+            color: #31708f;
+            background-color: #d9edf7;
+            border-color: #bce8f1;
+        }
+
+        .alert-warning {
+            color: #8a6d3b;
+            background-color: #fcf8e3;
+            border-color: #faebcc;
+        }
+
+        .metric-box {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .metric-title {
+            font-weight: bold;
+            color: var(--secondary-color);
+            margin-bottom: 10px;
+        }
+
+        /* Print styles for continuous PDF */
+        @media print {
+            body {
+                background-color: #fff;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+                font-size: 10pt;
+            }
+
+            h1 {
+                font-size: 18pt;
+            }
+
+            h2 {
+                font-size: 14pt;
+            }
+
+            h3 {
+                font-size: 12pt;
+            }
+
+            h4 {
+                font-size: 11pt;
+            }
+
+            p,
+            li,
+            td,
+            th {
+                font-size: 9pt;
+            }
+
+            code,
+            pre {
+                font-size: 8pt;
+            }
+
+            .container {
+                box-shadow: none;
+                max-width: 100%;
+                padding: 10px;
+            }
+
+            .section {
+                page-break-inside: avoid;
+            }
+
+            table {
+                page-break-inside: avoid;
+            }
+
+            tr {
+                page-break-inside: avoid;
+            }
+
+            h2,
+            h3,
+            h4 {
+                page-break-after: avoid;
+            }
+
+            .metric-box {
+                page-break-inside: avoid;
+            }
+
+            .alert {
+                page-break-inside: avoid;
+            }
+
+            .diagram-container {
+                page-break-inside: avoid;
+            }
+
+            img {
+                page-break-inside: avoid;
+            }
+        }
+
+        @page {
+            margin: 2cm 1.5cm;
+            /* top/bottom: 2cm, left/right: 1.5cm to avoid header/footer overlap */
+            size: A4;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>RLB-MI 재생산: 강화학습 기반 블랙박스 모델 인버전 공격</h1>
+            <p><strong>CSEG516 강화학습 팀 프로젝트</strong></p>
+            <div style="margin-top: 15px;">
+                <span class="badge badge-reproduction">재생산 연구</span>
+                <span class="badge badge-rl">강화학습</span>
+                <span class="badge badge-privacy">프라이버시 공격</span>
+                <span class="badge badge-gan">GAN + ArcFace</span>
+            </div>
+            <p style="margin-top: 20px;"><strong>팀원:</strong> 김대원, 최서빈</p>
+            <p><strong>서강대학교, 2025년 가을학기</strong></p>
+        </header>
+
+        <div class="abstract">
+            <strong>초록 (Abstract):</strong> 이 프로젝트는 CVPR 2023의 RLB-MI(강화학습 기반 블랙박스 모델 인버전) 공격 프레임워크를 재생산합니다.
+            우리는 CelebA 및 FaceScrub 데이터셋으로 훈련된 ArcFace 기반 얼굴 분류기를 대상으로, 사전 훈련된 GAN의 잠재 공간(latent space)을 탐색하기 위해
+            Soft Actor-Critic (SAC)을 구현했습니다.
+            추가적으로, 우리는 추론 시 <strong>로짓 온도 스케일링(inference-time logit temperature scaling)</strong>(ArcFace 스케일 팩터 s 조정)이
+            공격 성능에 미치는
+            영향을 조사하여, 보정된(calibrated) 신뢰도 점수가 RL 에이전트에게 더 유익한 보상 신호를 제공한다는 것을 입증했습니다.
+        </div>
+
+        <div style="text-align: center; margin: 20px 0;">
+            <img src="diagram.png" alt="RLB-MI Attack Framework"
+                style="max-width: 100%; height: auto; border-radius: 8px;">
+            <p style="font-size: 0.9em; color: #777; margin-top: 10px;"><em>그림: RLB-MI 공격 프레임워크 개요.</em></p>
+        </div>
+
+        <div class="section">
+            <h2>1. 서론 (Introduction)</h2>
+            <p><strong>모델 인버전 공격(MIA)</strong>은 모델의 출력과 훈련 데이터 간의 상관관계를 악용하여 비공개 입력값을 재구성합니다.
+                이 프로젝트는 모델 인버전 문제를 블랙박스 환경에서의 강화학습 태스크로 공식화한 RLB-MI 공격을 재생산하는 데 중점을 둡니다.</p>
+
+            <div class="alert alert-info">
+                <strong>원본 논문:</strong> "Reinforcement Learning-Based Black-Box Model Inversion Attacks" (Han et al.,
+                CVPR 2023)
+            </div>
+
+            <h3>1.1 위협 모델 (Threat Model)</h3>
+            <ul>
+                <li><strong>공격자 목표:</strong> 분류기로부터 타겟 대상 \( y \)의 인식 가능한 얼굴 이미지를 재구성.</li>
+                <li><strong>접근 수준:</strong> 타겟 분류기에 대한 블랙박스 접근 (쿼리 기반, 출력 확률 벡터만 관측 가능).</li>
+                <li><strong>보조 지식:</strong> 동일한 데이터셋(CelebA 또는 FaceScrub)으로 훈련되었으나 타겟과 겹치지 않는 신원(identities)을 가진 사전 훈련된
+                    생성자 \( G \).</li>
+            </ul>
+
+            <h3>1.2 우리의 기여 (Our Contributions)</h3>
+            <ul>
+                <li><strong>충실한 재생산:</strong> CelebA 및 FaceScrub 데이터셋에서 SAC 에이전트를 사용한 RLB-MI 구현.</li>
+                <li><strong>ArcFace 통합:</strong> 각도 마진(angular margin)을 사용하여 견고한 얼굴 분류기를 훈련하기 위한 ArcFace 손실 함수 사용.</li>
+                <li><strong>온도 스케일링 분석:</strong> 추론 시 스케일 팩터(s=16 vs s=64)가 공격 성능에 미치는 영향 조사.</li>
+            </ul>
+
+            <h3>1.3 공격 예시</h3>
+            <p>다음은 성공적인 모델 인버전 공격의 예시입니다. 위쪽 행은 실제 비공개 훈련 이미지(타겟 신원)를 보여주며, 아래쪽 행은 RL 에이전트가 분류기 쿼리만을 사용하여 재구성한 이미지를
+                보여줍니다.</p>
+
+            <div style="text-align: center; margin: 20px 0;">
+                <p><strong>타겟 (비공개 훈련 데이터)</strong></p>
+                <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+                    <img src="examples/target_1.png" alt="Target 1"
+                        style="width: 80px; height: 80px; border: 2px solid #3498db; border-radius: 5px;">
+                    <img src="examples/target_2.png" alt="Target 2"
+                        style="width: 80px; height: 80px; border: 2px solid #3498db; border-radius: 5px;">
+                    <img src="examples/target_3.png" alt="Target 3"
+                        style="width: 80px; height: 80px; border: 2px solid #3498db; border-radius: 5px;">
+                    <img src="examples/target_4.png" alt="Target 4"
+                        style="width: 80px; height: 80px; border: 2px solid #3498db; border-radius: 5px;">
+                    <img src="examples/target_5.png" alt="Target 5"
+                        style="width: 80px; height: 80px; border: 2px solid #3498db; border-radius: 5px;">
+                </div>
+                <p style="margin-top: 15px;"><strong>복구됨 (공격으로 생성됨)</strong></p>
+                <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+                    <img src="examples/recovery_1.png" alt="Recovery 1"
+                        style="width: 80px; height: 80px; border: 2px solid #e74c3c; border-radius: 5px;">
+                    <img src="examples/recovery_2.png" alt="Recovery 2"
+                        style="width: 80px; height: 80px; border: 2px solid #e74c3c; border-radius: 5px;">
+                    <img src="examples/recovery_3.png" alt="Recovery 3"
+                        style="width: 80px; height: 80px; border: 2px solid #e74c3c; border-radius: 5px;">
+                    <img src="examples/recovery_4.png" alt="Recovery 4"
+                        style="width: 80px; height: 80px; border: 2px solid #e74c3c; border-radius: 5px;">
+                    <img src="examples/recovery_5.png" alt="Recovery 5"
+                        style="width: 80px; height: 80px; border: 2px solid #e74c3c; border-radius: 5px;">
+                </div>
+                <p style="font-size: 0.9em; color: #777; margin-top: 10px;"><em>그림 1: 모델 인버전 공격 결과. 파란 테두리 = 실제 비공개 데이터,
+                        빨간 테두리 = 재구성된 이미지.</em></p>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>2. 시스템 아키텍처 (System Architecture)</h2>
+
+            <div class="diagram-container">
+                <div class="diagram-box" style="border-color: #e74c3c;">
+                    SAC 에이전트<br>(Actor-Critic)
+                </div>
+                <div class="diagram-arrow">→</div>
+                <div class="diagram-box" style="border-color: #f39c12;">
+                    잠재 벡터<br>(\( z \in \mathbb{R}^{100} \))
+                </div>
+                <div class="diagram-arrow">→</div>
+                <div class="diagram-box" style="border-color: #27ae60;">
+                    생성자<br>(WGAN-GP)
+                </div>
+                <div class="diagram-arrow">→</div>
+                <div class="diagram-box" style="border-color: #3498db;">
+                    타겟 분류기<br>(ArcFace)
+                </div>
+            </div>
+
+            <p style="text-align: center;"><em>그림 1: 공격 파이프라인. SAC 에이전트는 타겟 클래스 신뢰도를 최대화하는 이미지를 생성하는 \( z \) 벡터를 찾기 위해
+                    GAN 잠재 공간을 탐색합니다.</em></p>
+
+            <h3>2.1 ArcFace 분류기</h3>
+            <p>우리는 <strong>ArcFace (Additive Angular Margin Loss)</strong>를 사용하여 얼굴 분류기를 훈련시켰습니다. 이는 훈련 중 타겟 클래스에 각도 마진
+                \( m \)을 추가하여 변별력을 높입니다:</p>
+            <p>$$ L = -\log \frac{e^{s(\cos(\theta_y + m))}}{e^{s(\cos(\theta_y + m))} + \sum_{j \neq y}
+                e^{s\cos\theta_j}} $$</p>
+            <ul>
+                <li><strong>s (스케일 팩터):</strong> 로짓의 크기를 제어 (기본값: 훈련 중 64.0)</li>
+                <li><strong>m (각도 마진):</strong> 타겟 클래스 각도에 페널티 추가 (기본값: 0.5 라디안 \( \approx \) 28.6°)</li>
+            </ul>
+
+            <div class="alert alert-warning">
+                <strong>핵심 통찰:</strong> 추론 시 \( s=64 \)인 ArcFace는 매우 날카로운 확률 분포(신뢰도 > 99%)를 생성하여 보상 신호를 희소하게 만듭니다.
+                우리는 공격 중에 \( s=16 \)을 사용하여 보다 보정된 확률을 얻는 것을 조사했습니다.
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>3. 방법론 (Methodology)</h2>
+
+            <h3>3.1 MDP 공식화</h3>
+            <ul>
+                <li><strong>상태 (\( s_t \)):</strong> 현재 잠재 벡터 \( z_t \in \mathbb{R}^{100} \)</li>
+                <li><strong>행동 (\( a_t \)):</strong> 다음 잠재 벡터 (잠재 공간에서의 직접적인 점프)</li>
+                <li><strong>전이:</strong> \( z_{t+1} = \alpha z_t + (1-\alpha) a_t \), 여기서 \( \alpha \)는 모멘텀 팩터</li>
+                <li><strong>조기 종료:</strong> 타겟 클래스에 대한 분류기 신뢰도가 \( \ge 80\% \)일 때</li>
+            </ul>
+
+            <h3>3.2 보상 함수 (Reward Function)</h3>
+            <p>보상 함수는 에이전트를 안내하기 위해 세 가지 구성 요소를 결합합니다:</p>
+            <p>$$ R = w_1 r_1 + w_2 r_2 + w_3 r_3 \quad (w_1=2, w_2=2, w_3=8) $$</p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>구성 요소</th>
+                        <th>수식</th>
+                        <th>목적</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>r₁ (상태 점수)</strong></td>
+                        <td>$$ \log P(y \mid G(z_{t+1})) $$</td>
+                        <td>결과 상태의 타겟 신뢰도 최대화</td>
+                    </tr>
+                    <tr>
+                        <td><strong>r₂ (행동 점수)</strong></td>
+                        <td>$$ \log P(y \mid G(a_t)) $$</td>
+                        <td>높은 신뢰도의 행동 선택 장려</td>
+                    </tr>
+                    <tr>
+                        <td><strong>r₃ (구별 점수)</strong></td>
+                        <td>$$ \log(P(y) - \max P(\text{others})) $$</td>
+                        <td>타겟 클래스가 다른 클래스를 압도하도록 보장</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h2>4. 평가 지표 (Evaluation Metrics)</h2>
+            <p>RLB-MI 논문을 따라 세 가지 상호 보완적인 지표를 사용하여 공격을 평가합니다:</p>
+
+            <div class="metric-box">
+                <div class="metric-title">1. 공격 정확도 (Attack Accuracy, Top-1 / Top-5)</div>
+                <p><strong>정의:</strong> 독립적인 <em>평가 분류기</em>(타겟 분류기와 다름)가 생성된 이미지를 타겟 신원으로 올바르게 분류한 비율.</p>
+                <ul>
+                    <li><strong>Top-1:</strong> 타겟 클래스가 가장 높은 예측값일 때</li>
+                    <li><strong>Top-5:</strong> 타겟 클래스가 상위 5개 예측값 안에 들 때</li>
+                </ul>
+                <p><strong>해석:</strong> 높을수록 좋음. 공격 성공률 및 분류기 간 전이성을 측정.</p>
+            </div>
+
+            <div class="metric-box">
+                <div class="metric-title">2. KNN 거리 (KNN Distance)</div>
+                <p><strong>정의:</strong> 생성된 각 이미지와 비공개 훈련 세트의 K-최근접 이웃 간의 평균 L2 거리 (평가 분류기의 특징 공간에서 측정).</p>
+                <p>$$ \text{KNN}_\text{dist} = \frac{1}{N} \sum \frac{1}{K} \sum \|f(\text{gen}_i) -
+                    f(\text{private}_j)\|_2 $$</p>
+                <p><strong>해석:</strong> 낮을수록 좋음. 생성된 이미지가 실제 비공개 훈련 데이터와 얼마나 유사한지 나타냄.</p>
+            </div>
+
+            <div class="metric-box">
+                <div class="metric-title">3. FID (Fréchet Inception Distance)</div>
+                <p><strong>정의:</strong> InceptionV3 특징을 사용하여 생성된 이미지 분포와 비공개 이미지 분포 간의 거리를 측정.</p>
+                <p>$$ \text{FID} = \|\mu_{\text{gen}} - \mu_{\text{priv}}\|^2 + \text{Tr}(\Sigma_{\text{gen}} +
+                    \Sigma_{\text{priv}} - 2(\Sigma_{\text{gen}}\Sigma_{\text{priv}})^{0.5}) $$</p>
+                <p><strong>해석:</strong> 낮을수록 좋음. 생성된 얼굴의 지각적 품질과 사실성을 측정.</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>5. 실험 설정 (Experimental Setup)</h2>
+
+            <h3>5.1 환경</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>구성 요소</th>
+                        <th>사양</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>프레임워크</td>
+                        <td>PyTorch 2.x</td>
+                    </tr>
+                    <tr>
+                        <td>GPU</td>
+                        <td>NVIDIA A100 (colab pro+)</td>
+                    </tr>
+                    <tr>
+                        <td>언어</td>
+                        <td>Python 3.10+</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>5.2 데이터셋</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>데이터셋</th>
+                        <th>신원 수</th>
+                        <th>이미지 수</th>
+                        <th>목적</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>CelebA</strong></td>
+                        <td>1,000</td>
+                        <td>신원당 약 30장</td>
+                        <td>비공개 훈련 데이터</td>
+                    </tr>
+                    <tr>
+                        <td><strong>FaceScrub</strong></td>
+                        <td>530</td>
+                        <td>신원당 약 100장</td>
+                        <td>비공개 훈련 데이터</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p>각 데이터셋은 신원이 겹치지 않게 <strong>비공개</strong>(분류기 훈련용)와 <strong>공개</strong>(GAN 훈련용)로 나뉩니다.
+                이는 공격자가 유사하지만 서로 다른 데이터에 접근할 수 있는 현실적인 공격 시나리오를 시뮬레이션합니다.</p>
+
+            <h3>5.3 데이터 전처리</h3>
+            <ul>
+                <li><strong>얼굴 감지 및 정렬:</strong> MTCNN 기반 얼굴 감지 및 5개 랜드마크 정렬</li>
+                <li><strong>해상도:</strong> 모든 이미지를 64×64 픽셀로 크기 조정</li>
+                <li><strong>정규화 (분류기):</strong> Mean=[0.5177, 0.4284, 0.3803], Std=[0.3042, 0.2845, 0.2827]</li>
+                <li><strong>정규화 (생성자):</strong> 출력 범위 [-1, 1], 분류기 입력 전 [0, 1]로 변환</li>
+                <li><strong>데이터 증강:</strong> 분류기 훈련 중 무작위 수평 뒤집기 (p=0.5)</li>
+            </ul>
+
+            <h3>5.4 모델 구성</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>구성 요소</th>
+                        <th>아키텍처</th>
+                        <th>세부 사항</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>타겟 분류기</td>
+                        <td>VGG16 / ResNet152 + ArcFace</td>
+                        <td>\( s=64, m=0.5 \), embedding_dim=512</td>
+                    </tr>
+                    <tr>
+                        <td>평가 분류기</td>
+                        <td>FaceNet + ArcFace</td>
+                        <td>독립적인 평가 네트워크</td>
+                    </tr>
+                    <tr>
+                        <td>생성자</td>
+                        <td>WGAN-GP (DCGAN 스타일)</td>
+                        <td>\( z_{\text{dim}}=100 \), 출력=64×64×3, 동일 데이터셋 훈련</td>
+                    </tr>
+                    <tr>
+                        <td>RL 에이전트</td>
+                        <td>SAC (Soft Actor-Critic)</td>
+                        <td>Hidden=256×2, LR=3e-4</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>5.5 공격 설정</h3>
+            <ul>
+                <li><strong>타겟 클래스:</strong> 데이터셋별 가장 빈번한 상위 50개 신원</li>
+                <li><strong>클래스당 에피소드:</strong> 5,000회</li>
+                <li><strong>조기 종료:</strong> 타겟 신뢰도 \( \ge 80\% \)</li>
+                <li><strong>모멘텀 (\( \alpha \)):</strong> 0.0 (직접적인 행동이 다음 상태가 됨)</li>
+                <li><strong>랜덤 시드:</strong> 재현성을 위한 고정 시드. 시간 제약으로 인해 시드 변형 실험은 수행하지 않음 (데이터셋/모델/50개 라벨당 약 4시간 소요).</li>
+            </ul>
+
+            <h3>5.6 분류기 정확도</h3>
+            <p>다음 표는 훈련된 타겟 분류기의 각 테스트 세트에 대한 분류 정확도를 보여줍니다:</p>
+
+            <h4>VGG16 + ArcFace</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th>데이터셋</th>
+                        <th>Top-1</th>
+                        <th>Top-3</th>
+                        <th>Top-5</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>CelebA</td>
+                        <td>76.76%</td>
+                        <td>84.92%</td>
+                        <td>87.28%</td>
+                    </tr>
+                    <tr>
+                        <td>FaceScrub</td>
+                        <td>94.74%</td>
+                        <td>97.37%</td>
+                        <td>98.17%</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h4>ResNet-152 + ArcFace</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th>데이터셋</th>
+                        <th>Top-1</th>
+                        <th>Top-3</th>
+                        <th>Top-5</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>CelebA</td>
+                        <td>62.62%</td>
+                        <td>72.67%</td>
+                        <td>75.63%</td>
+                    </tr>
+                    <tr>
+                        <td>FaceScrub</td>
+                        <td>92.00%</td>
+                        <td>95.49%</td>
+                        <td>96.34%</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h4>Face.evoLVe (평가 분류기)</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th>데이터셋</th>
+                        <th>Top-1</th>
+                        <th>Top-3</th>
+                        <th>Top-5</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>CelebA</td>
+                        <td>65.98%</td>
+                        <td>74.63%</td>
+                        <td>77.40%</td>
+                    </tr>
+                    <tr>
+                        <td>FaceScrub</td>
+                        <td>90.86%</td>
+                        <td>94.63%</td>
+                        <td>95.94%</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p><em>참고: 평가 분류기는 타겟 분류기와 독립적이며 공격 전이성을 측정하는 데 사용됩니다.</em></p>
+        </div>
+
+        <div class="section">
+            <h2>6. 결과 (Results)</h2>
+
+            <h3>6.1 추론 시 온도 스케일링</h3>
+            <p>우리는 공격 추론 중 ArcFace 스케일 팩터의 영향을 조사했습니다:</p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>스케일 (s)</th>
+                        <th>확률 분포</th>
+                        <th>보상 신호</th>
+                        <th>예상 효과</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>s=64 (기존)</td>
+                        <td>매우 날카로움 (>99%)</td>
+                        <td>희소함, 이진(binary) 유사</td>
+                        <td>빠른 수렴이나 지역 최적점(local optima)에 빠짐</td>
+                    </tr>
+                    <tr>
+                        <td>s=16 (제안)</td>
+                        <td>보정됨 (~70-90%)</td>
+                        <td>유익함, 부드러움</td>
+                        <td>더 나은 탐색, 더 높은 품질</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>6.2 주요 결과</h3>
+            <p>우리는 데이터셋(CelebA, FaceScrub), 타겟 모델(VGG16, ResNet152), 스케일 팩터(s=64, s=16)의 모든 조합을 평가했습니다.
+                <strong>추론 시 로짓 스케일링(s=16)은 대부분의 구성에서 공격 성능을 일관되게 향상시켰습니다.</strong>
+                특히, s=16을 사용했을 때 Top-1 정확도가 최대 +18%p(FaceScrub + ResNet152) 향상되었고,
+                FID 점수가 최대 20점 감소하여 더 나은 품질의 재구성을 나타냈습니다.
+            </p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>데이터셋</th>
+                        <th>타겟 모델</th>
+                        <th>스케일</th>
+                        <th>Top-1 정확도 (%)</th>
+                        <th>Top-5 정확도 (%)</th>
+                        <th>KNN 거리</th>
+                        <th>FID</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>CelebA</td>
+                        <td>VGG16</td>
+                        <td>s=64</td>
+                        <td>16.00</td>
+                        <td>32.00</td>
+                        <td>1.2377</td>
+                        <td>99.70</td>
+                    </tr>
+                    <tr>
+                        <td>CelebA</td>
+                        <td>VGG16</td>
+                        <td>s=16</td>
+                        <td><strong>22.00</strong></td>
+                        <td><strong>52.00</strong></td>
+                        <td><strong>1.1629</strong></td>
+                        <td><strong>79.82</strong></td>
+                    </tr>
+                    <tr>
+                        <td>CelebA</td>
+                        <td>ResNet152</td>
+                        <td>s=64</td>
+                        <td><strong>18.00</strong></td>
+                        <td>26.00</td>
+                        <td>1.2164</td>
+                        <td><strong>76.99</strong></td>
+                    </tr>
+                    <tr>
+                        <td>CelebA</td>
+                        <td>ResNet152</td>
+                        <td>s=16</td>
+                        <td>16.00</td>
+                        <td><strong>30.00</strong></td>
+                        <td><strong>1.1965</strong></td>
+                        <td>78.83</td>
+                    </tr>
+                    <tr>
+                        <td>FaceScrub</td>
+                        <td>VGG16</td>
+                        <td>s=64</td>
+                        <td>22.00</td>
+                        <td>34.00</td>
+                        <td>1.1837</td>
+                        <td>91.57</td>
+                    </tr>
+                    <tr>
+                        <td>FaceScrub</td>
+                        <td>VGG16</td>
+                        <td>s=16</td>
+                        <td><strong>34.00</strong></td>
+                        <td><strong>50.00</strong></td>
+                        <td><strong>1.1017</strong></td>
+                        <td><strong>76.37</strong></td>
+                    </tr>
+                    <tr>
+                        <td>FaceScrub</td>
+                        <td>ResNet152</td>
+                        <td>s=64</td>
+                        <td>8.00</td>
+                        <td>34.00</td>
+                        <td>1.2291</td>
+                        <td>76.88</td>
+                    </tr>
+                    <tr>
+                        <td>FaceScrub</td>
+                        <td>ResNet152</td>
+                        <td>s=16</td>
+                        <td><strong>26.00</strong></td>
+                        <td><strong>44.00</strong></td>
+                        <td><strong>1.1488</strong></td>
+                        <td><strong>67.93</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h2>7. 논의 (Discussion)</h2>
+
+            <h3>7.1 보상 형성으로서의 온도 스케일링</h3>
+            <p>추론 중 ArcFace 스케일 팩터를 s=64에서 s=16으로 줄이는 것은 <strong>암시적인 보상 형성(implicit reward shaping)</strong> 역할을 합니다.
+                s=64일 때는 소프트맥스 출력이 매우 뾰족하여 잠재 공간의 작은 변화가 보상 차이를 거의 만들지 못합니다.
+                s=16일 때는 확률 분포가 더 부드러워져 RL 에이전트에게 더 유익한 그래디언트 신호를 제공합니다.</p>
+
+            <h3>7.2 이상 사례: 공격이 "성공"했으나 실패한 경우</h3>
+            <p>우리는 생성된 이미지가 높은 신뢰도로 타겟 분류기를 속이지만,
+                <strong>이미지 자체는 심하게 왜곡되거나 손상되어</strong> 사람 얼굴과 전혀 닮지 않은 흥미로운 사례를 관찰했습니다.
+                아래는 이러한 이상 현상의 예시입니다:
+            </p>
+
+            <div style="text-align: center; margin: 20px 0;">
+                <div style="display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
+                    <img src="examples/anomaly_1.png" alt="Anomaly 1"
+                        style="width: 80px; height: 80px; border: 2px solid #e74c3c; border-radius: 5px;">
+                    <img src="examples/anomaly_2.png" alt="Anomaly 2"
+                        style="width: 80px; height: 80px; border: 2px solid #e74c3c; border-radius: 5px;">
+                    <img src="examples/anomaly_3.png" alt="Anomaly 3"
+                        style="width: 80px; height: 80px; border: 2px solid #e74c3c; border-radius: 5px;">
+                </div>
+                <p style="font-size: 0.9em; color: #777; margin-top: 10px;"><em>그림: 손상되거나 흐릿한 이미지가 여전히 높은 타겟 분류기 신뢰도를
+                        달성하는 이상 사례.</em></p>
+            </div>
+
+            <p><strong>분석:</strong> 이 현상은 두 가지 요인에 기인할 수 있습니다:</p>
+            <ul>
+                <li><strong>GAN 잠재 매니폴드 제한:</strong> 모드 붕괴(mode collapse)로 인해 GAN의 잠재 공간에 특정 타겟 신원에 대한 적절한 얼굴 이미지와 매핑되는
+                    벡터가 부족합니다.
+                    RL 에이전트는 생성자가 손상된 출력을 생성하는 영역으로 이동합니다.</li>
+                <li><strong>OOD 영역에서의 분류기 과신:</strong> 에이전트가 분포 외(OOD) 이미지를 생성하는 잠재 영역을 탐색할 때,
+                    분류기는 낯선 영역에서 보정이 부족하여 가짜 높은 신뢰도를 보입니다.
+                    에이전트는 본질적으로 의미 있는 이미지를 생성하지 않으면서 분류기의 결정 경계를 악용하는 "적대적" 잠재 벡터를 찾습니다.</li>
+            </ul>
+
+            <h3>7.3 한계점</h3>
+            <ul>
+                <li><strong>생성자 용량:</strong> 공격 품질은 GAN이 다양하고 사실적인 얼굴을 생성하는 능력에 의존합니다.</li>
+                <li><strong>쿼리 효율성:</strong> 타겟 신원당 수천 번의 쿼리가 필요합니다.</li>
+                <li><strong>해상도:</strong> 현재 구현은 64×64 이미지를 사용하며, 고해상도는 더 많은 연산을 필요로 합니다.</li>
+            </ul>
+
+            <h3>7.4 향후 연구</h3>
+            <ul>
+                <li><strong>보상 형성 탐색:</strong> 온도 스케일링 외에 다양한 보상 형성 기술(예: potential-based shaping, 커리큘럼 학습)을 비교하면 추가적인
+                    성능 향상을 얻을 수 있습니다.</li>
+                <li><strong>대체 RL 알고리즘:</strong> 타겟 신원별로 별도의 훈련이 필요한 라벨별 공격 특성상 SAC만 평가할 수 있었습니다. DDPG나 TD3와 같은 다른 연속 제어
+                    알고리즘과 비교하는 것은 계산 비용이 들지만 가치 있는 향후 연구가 될 것입니다.</li>
+                <li><strong>최신 생성 모델:</strong> GAN은 모드 붕괴에 취약하므로, 잠재 확산 모델(예: VAE 잠재 공간을 갖춘 Stable Diffusion)을 탐색하면 재구성의
+                    다양성과 품질을 향상시킬 수 있습니다.</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>8. 팀원의 역할</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>팀원</th>
+                        <th>기여 내용</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>김대원</strong></td>
+                        <td>
+                            <ul style="margin: 0; padding-left: 20px;">
+                                <li>프로젝트 주제 선정 및 문제 정의</li>
+                                <li>GAN (WGAN-GP) 훈련 및 구현</li>
+                                <li>환경 설정 및 데이터 전처리</li>
+                                <li>ArcFace 손실 통합 분류기 훈련</li>
+                            </ul>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>최서빈</strong></td>
+                        <td>
+                            <ul style="margin: 0; padding-left: 20px;">
+                                <li>SAC 에이전트 훈련 및 하이퍼파라미터 튜닝</li>
+                                <li>로짓 온도 스케일링 제안 및 실험</li>
+                                <li>보고서 작성 및 문서화</li>
+                            </ul>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h2>9. 결론 (Conclusion)</h2>
+            <p>우리는 RLB-MI 공격 프레임워크를 성공적으로 재생산하여, 강화학습이 블랙박스 분류기를 효과적으로 공략하여 비공개 훈련 데이터를 재구성할 수 있음을 입증했습니다.
+                추론 시 온도 스케일링에 대한 조사를 통해, <strong>분류기의 신뢰도 점수를 보정하는 것</strong>이 RL 에이전트에게 더 유익한 보상 신호를 제공하여 공격 성능에 상당한
+                영향을 줄 수 있음을 밝혔습니다.</p>
+        </div>
+
+        <div class="section">
+            <h2>참고 문헌 (References)</h2>
+            <ol>
+                <li>Han et al., "Reinforcement Learning-Based Black-Box Model Inversion Attacks", CVPR 2023</li>
+                <li>Deng et al., "ArcFace: Additive Angular Margin Loss for Deep Face Recognition", CVPR 2019</li>
+                <li>Haarnoja et al., "Soft Actor-Critic: Off-Policy Maximum Entropy Deep RL", ICML 2018</li>
+            </ol>
+        </div>
+
+        <div class="footer">
+            <p>CSEG516 Reinforcement Learning | 서강대학교 | 2025년 가을학기</p>
+        </div>
+    </div>
+</body>
+
+</html>
