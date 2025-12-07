@@ -1,0 +1,15 @@
+### Ignoring pycache and its bypass files
+__pycache__/
+*.so
+*.dylib
+*.egg-info/
+*.tar
+*.ipynb
+*.png
+*.jpg
+.env
+dataset/
+*.pt
+paper.pdf
+attack_results/
+runs/
