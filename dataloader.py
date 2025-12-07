@@ -422,9 +422,9 @@ if __name__ == '__main__':
     # preprocess_dataset('rajnishe/facescrub-full', 200, verbose=True, is_kaggle=True)
 
     load_kaggle_public_dataset(
-        'arnaud58/flickrfaceshq-dataset-ffhq',
+        'jessicali9530/celeba-dataset',
         sample_size=30_000,
         seed=42,
-        output_dir='dataset/public/flickrfaceshq-dataset-ffhq',
+        output_dir='dataset/public/celeba',
         verbose=True,
     )

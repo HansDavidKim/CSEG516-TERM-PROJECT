@@ -141,11 +141,12 @@ def create_model(model_name: str, num_classes: int, weight_path: str | None) -> 
     raise ValueError(f"Unsupported model_name '{model_name}'.")
 
 
-def resolve_device(prefer_mps: bool = True) -> torch.device:
-    if prefer_mps and torch.backends.mps.is_available():
-        return torch.device("mps")
+def resolve_device() -> torch.device:
+    """Resolve device with CUDA priority."""
     if torch.cuda.is_available():
         return torch.device("cuda")
+    if torch.backends.mps.is_available():
+        return torch.device("mps")
     return torch.device("cpu")
 
 
@@ -389,12 +390,14 @@ def train(
                 resolved_path = candidate.resolve()
                 break
         if resolved_path is None:
-            raise FileNotFoundError(
-                f"Pretrained weights were requested but not found for model '{model_name}'. "
-                f"Searched: {[str(p) for p in candidate_paths]}"
+            print(
+                f"[WARN] Pretrained weights not found for model '{model_name}'. "
+                f"Searched: {[str(p) for p in candidate_paths]}. Training from scratch."
             )
-        weight_path = str(resolved_path)
-        print(f"Loading pretrained weights from {weight_path}")
+            weight_path = None
+        else:
+            weight_path = str(resolved_path)
+            print(f"Loading pretrained weights from {weight_path}")
     else:
         weight_path = None
 

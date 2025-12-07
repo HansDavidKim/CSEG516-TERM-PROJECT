@@ -46,7 +46,6 @@ def train_classifier(
     dataset_alias = {
         'celeba': 'dataset/private/celeba',
         'facescrub-full': 'dataset/private/facescrub-full',
-        'pubfig83': 'dataset/private/pubfig83',
     }
 
     dataset_key = data_set.lower()
@@ -54,7 +53,6 @@ def train_classifier(
     checkpoint_suffix_map = {
         'celeba': 'celeba',
         'facescrub-full': 'facescrub',
-        'pubfig83': 'pubfig83',
     }
     checkpoint_suffix = checkpoint_suffix_map.get(dataset_key)
 
@@ -104,7 +102,7 @@ def train_classifier(
 @app.command()
 def train_generator(
     data_root: str = typer.Option(
-        "dataset/public/flickrfaceshq-dataset-ffhq",
+        "dataset/public/celeba",
         "--data-root",
         help="Root directory containing image data. If it has splits, --split will select one.",
     ),
@@ -273,8 +271,10 @@ def measure_accuracy(
     )
     
     print(f"\n✅ Attack Accuracy Measurement Complete!")
-    print(f"Top-1 Accuracy: {results['top1_accuracy']:.2f}%")
-    print(f"Top-5 Accuracy: {results['top5_accuracy']:.2f}%")
+    print(f"Target Classifier Success: {results['target_top1_accuracy']:.2f}% (Top-1), {results['target_top5_accuracy']:.2f}% (Top-5)")
+    print(f"Transferability: {results['eval_top1_accuracy']:.2f}% (Top-1), {results['eval_top5_accuracy']:.2f}% (Top-5)")
+    if 'report_path' in results:
+        print(f"Detailed report saved to: {results['report_path']}")
 
 if __name__ == "__main__":
     app()

@@ -7,8 +7,11 @@ from classifier.models import VGG16, ResNet152, FaceNet
 
 ### Load Model Weight if exists
 def load_weight(model_name, path, num_classes):
-    assert model_name in ['VGG16', 'ResNet152', 'Face.evoLVe'], "Model should be VGG16 or ResNet152 or Face.evoLVe."
+    assert model_name in ['VGG16', 'ResNet152', 'Face.evoLVe', 'FaceNet'], "Model should be VGG16, ResNet152, Face.evoLVe, or FaceNet."
     
+    if not os.path.exists(path):
+        raise AssertionError(f"Weight file not found at: {path}")
+
     if model_name == 'VGG16':
         model = VGG16(num_classes)
     
@@ -17,9 +20,6 @@ def load_weight(model_name, path, num_classes):
     
     else:
         model = FaceNet(num_classes)
-    
-    if not os.path.exists(path):
-        raise AssertionError(f"Weight file not found at: {path}")
 
     state = torch.load(path, map_location="cpu")
     state_dict = state.get('stat_dict') or state.get('state_dict') or state

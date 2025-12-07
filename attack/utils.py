@@ -18,7 +18,17 @@ def load_generator(path: str, device: torch.device, dim: int = 64) -> Generator:
     generator.eval()
     return generator
 
-def load_classifier(path: str, device: torch.device, model_name: str = 'VGG16'):
+def load_classifier(path: str, device: torch.device, model_name: str = 'VGG16', arcface_scale: float = 16.0):
+    """
+    Load classifier model and optional ArcFace head.
+    
+    Args:
+        path: Path to classifier checkpoint
+        device: Device to load model on
+        model_name: Model architecture name (auto-inferred from path)
+        arcface_scale: Scale factor for ArcFace logits (default 16.0 for calibrated probabilities)
+                       Lower values = softer probabilities, higher values = sharper probabilities
+    """
     if not os.path.exists(path):
             raise FileNotFoundError(f"Classifier path {path} does not exist")
     
@@ -64,9 +74,12 @@ def load_classifier(path: str, device: torch.device, model_name: str = 'VGG16'):
         from classifier.train import ArcMarginProduct
         # Infer embedding dimension from model
         emb_dim = getattr(model, 'embedding_dim', 512)
-        arc_head = ArcMarginProduct(emb_dim, num_classes, s=64.0, m=0.5).to(device)
+        # Use configurable scale factor for temperature scaling during inference
+        # Original training used s=64, lower s gives more calibrated probabilities
+        arc_head = ArcMarginProduct(emb_dim, num_classes, s=arcface_scale, m=0.5).to(device)
         arc_head.load_state_dict(arc_head_state)
         arc_head.eval()
+        print(f"  ArcFace head loaded with scale={arcface_scale}")
     
     return model, arc_head
 

@@ -5,11 +5,13 @@ __pycache__/
 *.egg-info/
 *.tar
 *.ipynb
-*.png
-*.jpg
+dataset/*.jpg
+generated_images/*.png
 .env
 dataset/
 *.pt
 paper.pdf
 attack_results/
 runs/
+*.csv
+generated_images/

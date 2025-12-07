@@ -68,12 +68,13 @@ class FlatImageDataset(Dataset):
 
 
 def _select_device(explicit: Optional[str] = None) -> torch.device:
+    """Select device with CUDA priority."""
     if explicit:
         return torch.device(explicit)
-    if torch.backends.mps.is_available():
-        return torch.device("mps")
     if torch.cuda.is_available():
         return torch.device("cuda")
+    if torch.backends.mps.is_available():
+        return torch.device("mps")
     return torch.device("cpu")
 
 
@@ -280,8 +281,10 @@ def train(
     sample_dir = output_path / "generator_samples"
     sample_dir.mkdir(parents=True, exist_ok=True)
 
+    # Extract dataset name from data_root for checkpoint naming
+    dataset_name = Path(data_root).name.replace("-", "_").lower()
     last_sample_path: Optional[Path] = None
-    last_checkpoint_path = output_path / "generator_last.pt"
+    last_checkpoint_path = output_path / f"generator_{dataset_name}.pt"
 
     steps_per_epoch = len(dataloader)
     data_iterator = iter(dataloader)
