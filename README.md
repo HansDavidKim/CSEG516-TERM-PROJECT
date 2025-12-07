@@ -67,8 +67,22 @@ checkpoints/
 
 ### Requirements
 ```bash
-pip install torch torchvision numpy scipy tqdm pillow
+pip install -r requirements.txt
 ```
+
+### Kaggle API Setup
+To download datasets automatically, you need Kaggle API credentials.
+
+1. Create a Kaggle account at [kaggle.com](https://www.kaggle.com)
+2. Go to **Account Settings** → **API** → **Create New Token**
+3. Create a `.env` file in the project root:
+```bash
+# .env
+KAGGLE_USERNAME=your_kaggle_username
+KAGGLE_KEY=your_kaggle_api_key
+```
+
+> **Note:** The `.env` file is gitignored for security.
 
 ### Dataset Structure
 ```
